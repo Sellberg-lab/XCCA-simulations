@@ -100,7 +100,7 @@ for i in range(N):	#require indent for loop
     #   {-- if Pyton3 --}: print("Writing File Time:", time.time()-t_loop)
     print "Writing File Time:", time.time()-t_loop #   {-- Pyton2.7 --}
 #           Plot each Pattern:
-   plotting = False    # comment out to save data in plots directly
+    plotting = False    # comment out to save data in plots directly
     if plotting:
         frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
         #  Save Intensity Patterns in Plots:  "Intensity Patterns" = |"Amplitude Patterns"|^2
