@@ -49,7 +49,7 @@ src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=200E-9, p
 #   det = condor.Detector(distance=0.15, pixel_size=110E-06, nx=1516, ny=1516, noise = "poisson")
 N = 3       # number of diffraction patterns to simulate
 ps = 110    # [um] pixel size in um= 1E-6m
-pxls = 1516    # number of pixels, 128 (N=1:Runtime=48s), 256 (N=1:Runtime=3min), 512 (N=3:Runtime= 4.6 h),  1024 (N=1:Runtime= 1h 20min, N=3: 12h [Write+plot]), 1516 (N=3:Runtime=32h [plot])
+pxls = 1516    # number of pixels, 128 (N=1:Runtime=48s), 256 (N=1:Runtime=3min), 512 (N=3:Runtime= 4.6 h),  1024 (N=1:Runtime= 1h 20min, N=3: 12h [Write+plot]), 1516 (N=3:Runtime=32h [plot], 11 h,  14  min [Write]x)
 x_gap = 0   # [pixels] gap size isn x-dim
 h_dia = 0   # [pixels] diameter of central hole
 noisy = None # Noise type: {None, "poisson", ”normal"=gaussian, "normal_poisson" = gaussian and poisson}
@@ -99,8 +99,8 @@ for i in range(N):	#require indent for loop
     #    W.write(res)	# Write the result (Dictionary) to a CXI-file; comment out if only wants direct plots saved
     #   {-- if Pyton3 --}: print("Writing File Time:", time.time()-t_loop)
     print "Writing File Time:", time.time()-t_loop #   {-- Pyton2.7 --}
-#           Plot each Pattern:
-   plotting = False    # comment out to save data in plots directly
+    # ____Plot each Pattern:
+    plotting = False    # comment out to save data in plots directly
     if plotting:
         frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
         #  Save Intensity Patterns in Plots:  "Intensity Patterns" = |"Amplitude Patterns"|^2
