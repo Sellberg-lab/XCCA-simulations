@@ -82,7 +82,7 @@ t_exp = time.time() # time marker for measuring propagation-time
 # Output File:
 if noisy is None: noisy = "none" # since None is valid input
 if n_spread is None: n_spread = "0" # since None is valid input
-W = condor.utils.cxiwriter.CXIWriter("./test_condor_84-119__%s_(r%i-ps%ium-ny%i-%s-sprd%s)_#%i.cxi"  %(pdb,ratio*10,ps,pxls,noisy,n_spread,N)) # comment out if only wants direct plots saved
+W = condor.utils.cxiwriter.CXIWriter("./test_condor_84-119_%s_(r%i-ps%ium-ny%i-%s-sprd%s)_#%i.cxi"  %(pdb,ratio*10,ps,pxls,noisy,n_spread,N)) # comment out if only wants direct plots saved
 
 # Simulate N Images:
 for i in range(N):	#require indent for loop
