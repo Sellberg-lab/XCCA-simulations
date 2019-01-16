@@ -99,7 +99,11 @@ for i in range(N):	#require indent for loop
     #    W.write(res)	# Write the result (Dictionary) to a CXI-file; comment out if only wants direct plots saved
     #   {-- if Pyton3 --}: print("Writing File Time:", time.time()-t_loop)
     print "Writing File Time:", time.time()-t_loop #   {-- Pyton2.7 --}
+<<<<<<< HEAD
     # ____Plot each Pattern:
+=======
+#           Plot each Pattern:
+>>>>>>> 2539386354c14f17466deddaccb254bd5d719f07
     plotting = False    # comment out to save data in plots directly
     if plotting:
         frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
