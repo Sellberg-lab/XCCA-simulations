@@ -104,8 +104,11 @@ Patt_w_mb=np.multiply(patterson_image,mask_better) # Patterson Image (Autocorrel
 #	---- Gain from file (divide images with gain?): ----	# Currently not implemented !
 gn = np.load("%s/../gain/gain_lr6716_r78.npy" %str(this_dir))	# from exp-file run 84-119
 gn[ gn==0] = 1
+<<<<<<< HEAD
 #img1 = img1*mask / gain
 # or polar_gain = Interp.nearest(ass_gain), corr_g = gc.autocorr(), sig_g = corr_g / corr_g[:,0][:,None]
+=======
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 
 # ---- Centre Coordiates Retrieved Directly from File: ----
 ## with the dimensions fs = fast-scan {x}, ss = slow-scan {y} ##
@@ -538,11 +541,20 @@ if XCCA_Loki:
 			#plt.plot( qs[int(rad_pro.shape[0]/2):-1], rad_pro[int(rad_pro.shape[0]/2):-1], lw=2)
 			#for i in range(N) : plt.plot(qs[int(rad_pro.shape[0]/2):-1], rad_pros[i][int(rad_pro.shape[0]/2):-1], lw=2, label='Pattern #%i' %i)
 			for i in range(N) : plt.plot(qs[int(cntr[1]):-600], rad_pros[i][int(cntr[1]):-600], lw=2, label='Pattern #%i' %i)
+<<<<<<< HEAD
 			plt.legend()
 			plt.title('%s_%s_%s_(%s-sprd%s)_#%i' %(name,run,pdb,noisy,n_spread,N))
 			plt.ylabel("Mean ADU", fontsize=20)
 			plt.xlabel("Q $(\AA^{-1})$", fontsize=20) ## ERR do not start at 0-> must FIX !! ##
 			plt.gca().tick_params(labelsize=15, length=9)
+=======
+			
+			plt.title('%s_%s_%s_(%s-sprd%s)_#%i' %(name,run,pdb,noisy,n_spread,N))
+			plt.ylabel("Mean ADU", fontsize=20)
+			plt.xlabel("Q $(\AA^{-1})$", fontsize=20)
+			plt.gca().tick_params(labelsize=15, length=9)
+			plt.legend
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 			
 			plt.subplot(122)
 			#plt.plot( rad_pro, lw=2) 
@@ -550,11 +562,18 @@ if XCCA_Loki:
 			#for i in range(N):	plt.plot( rad_pros[i][int(rad_pro.shape[0]/2):-1], lw=2,  label='Pattern #%i' %i)
 			for i in range(N):	plt.plot( rad_pros[i][int(cntr[1]):-600], lw=2,  label='Pattern #%i' %i)
 			# or ? plt.plot( np.transpose(rad_pros[i][int(rad_pro.shape[0]/2):-1]), lw=2,  label='Pattern #%i' %i)
+<<<<<<< HEAD
 			plt.legend()
+=======
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 			plt.title('%s_%s_%s_(%s-sprd%s)_#%i' %(name,run,pdb,noisy,n_spread,N))
 			plt.ylabel("Mean ADU", fontsize=20)
 			plt.xlabel("r (pixels)", fontsize=20)
 			plt.gca().tick_params(labelsize=15, length=9)
+<<<<<<< HEAD
+=======
+			plt.legend
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 			plt.show()
 			fig_name = "Figure_1_Radial-Profile-SUBPLOT_(_w_Mask.%s" %(frmt)
 			#pypl.savefig( out_fname + fig_name)
@@ -1216,7 +1235,10 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 		data_hdf.close()
 
 	########## PLOT ACC [fig.3]: ################################
+<<<<<<< HEAD
 	from matplotlib import ticker
+=======
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 	if plot_acorr_raw:	# ifft (conjunate) => Ned ABS-value
 		pypl.figure(3, figsize=(15,8))
 		f = corrqqsum.shape[2]+1		# Number of Subplots
@@ -1235,17 +1257,25 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 			if i==corrqqsum.shape[2]: im=ax.imshow(np.sum(pplotsum,2), aspect='auto', vmax = cb_max) # or norm : Normalize ??
 			else:	im=ax.imshow(pplotsum[:,:,i], aspect='auto')#, vmax = cb_max) #		## if storing np.abs(Complex128)**2  ##
 					#im=ax.imshow(abs(corrqqsum[:,:,i]), aspect='auto', vmax = cb_max) #	## if storing Complex Matrices ##
+<<<<<<< HEAD
 			ax.set_title("Polar Plot Sum: %s" %plt_name[i],  fontsize=14)
 			cb=pypl.colorbar(im, orientation="horizontal") #label=r'...')
 			cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
 			cb.update_ticks()
+=======
+			ax.set_title("Polar Plot Sum: %s" %plt_name[i],  fontsize=14), pypl.colorbar(im, orientation="horizontal") #label=r'...')
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 		#pypl.xticks(nphi_bins, nphi_label), pypl.yticks(q_bins, q_label)
 		#pypl.xlabel(r'$\phi$', fontsize = 18), pypl.ylabel(r'q  [pixels]', fontsize =18)#(r'$q \, [\AA^{-1}]$', fontsize =18)
 		#pypl.show()
 		fig_name = "Figure_3_SUBPLOT_ACC_(qx-%i_qi-%i)_w_Mask.%s" %(qmax,qmin,frmt)
 		pypl.savefig( out_fname + fig_name)
 		print "\n Plot saved as %s " %fig_name
+<<<<<<< HEAD
 		del fig_name
+=======
+		#del fig_name
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 
 	######################################################################
 	##
@@ -1256,6 +1286,7 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 	print "Number of procesed frames even/odd", nprocessed
 	totalIarr = np.array(totalIList)
 	print "Min max integrated intensity :", np.min(totalIarr), np.max(totalIarr)
+<<<<<<< HEAD
 
 	# ---- Correct Correlations  by Mask Correlation: ----
 	#corrqqsum[:,:,0] = ac.mask_correction( corrqqsum[:,:,0], corrqq_mask )
@@ -1268,14 +1299,32 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 		#corrqqsum[:,:,1] = ac.mask_correction( corrqqsumX[:,:,1], corrqq_mask )
 		corrqqsumX[:,:,0] += ac.mask_correction( corrqqsumX[:,:,0], np.abs(corrqq_mask)**2)
 		corrqqsumX[:,:,1] += ac.mask_correction( corrqqsumX[:,:,1], np.abs(corrqq_mask)**2)
+=======
+	##
+	## correct correlations by mask correlation
+	##
+	corrqqsum[:,:,0] = ac.mask_correction( corrqqsum[:,:,0], corrqq_mask )
+	corrqqsum[:,:,1] = ac.mask_correction( corrqqsum[:,:,1], corrqq_mask )
+	if atp.args.randomXcorr == True:
+		corrqqsum[:,:,0] = ac.mask_correction( corrqqsumX[:,:,0], corrqq_mask) 
+		corrqqsum[:,:,1] = ac.mask_correction( corrqqsumX[:,:,1], corrqq_mask )
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 	##
 	## pearson correlation to measure similarity of odd/even frame angular correlations
 	## ...
 	##
+<<<<<<< HEAD
 
 	########## PLOT ACC [fig.4]: ################################
 	if plot_acorr_proc:	# ifft (conjunate) => Ned ABS-value
 		pypl.figure(4, figsize=(15,8))
+=======
+	## save some output
+	##
+		########## PLOT ACC [fig.4]: ################################
+	if plot_acorr_porc:	# ifft (conjunate) => Ned ABS-value
+		pypl.figure(3, figsize=(15,8))
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
 		f = corrqqsum.shape[2]+1		# Number of Subplots
 		plt_name = ["Even Frame", "Odd Frame", "Total"]
 		if corrqqsum[:,:,0].max() > corrqqsum[:,:,1].max():	cb_max =corrqqsum[:,:,0].max()
@@ -1290,6 +1339,7 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 		#pypl.xticks(nphi_bins, nphi_label), pypl.yticks(q_bins, q_label)
 		#pypl.xlabel(r'$\phi$', fontsize = 18), pypl.ylabel(r'q  [pixels]', fontsize =18)#(r'$q \, [\AA^{-1}]$', fontsize =18)
 		#pypl.show()
+<<<<<<< HEAD
 		fig_name = "Figure_4_SUBPLOT_ACC-corrected_(qx-%i_qi-%i)_w_Mask.%s" %(qmax,qmin,frmt)
 		pypl.savefig( out_fname + fig_name)
 		print "\n Plot saved as %s " %fig_name
@@ -1340,3 +1390,11 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 #rmax = 1130
 #chunksize = 50
 #min_residual = 10
+=======
+		fig_name = "Figure_3_SUBPLOT_ACC-corrected_(qx-%i_qi-%i)_w_Mask.%s" %(qmax,qmin,frmt)
+		pypl.savefig( out_fname + fig_name)
+		print "\n Plot saved as %s " %fig_name
+		#del fig_name
+
+	######################################################################
+>>>>>>> 78ba7fa2c355f2bb314ca4c49f5ddc07b456b1d9
