@@ -1,21 +1,17 @@
 #*************************************************************************
-# run Simulations in Python2.7 with Condor (v1.0) for CsCl CXI-Martin run 18-119
+# run Simulations in Python2.7 with Condor (v1.0) for CsCl CXI-Martin run 18-105/119
 # N number of diffraction patterns are simulated and can be either plotted directly
 # with 'plotting != false' and/or saved to a '.cxi'-file
 #   plots saved to choosen file-format 'frmt'
 #   Intensity Pattern = abs(Amplitude_Pattern)^2) are plotted directly as
 #           '..._data-nabs_...' without taking the modulus in the plot
 #            and as a log10 plot '..._log10_...' and are in reciprocal space
-#  Projection patterns '..._rs_...' in real space are from inv Fourier transform of data
-#              (and FFT-shifted)
-#   Patterson_Image '..._patterson_image_...' are from FFTshift-Fast Fourier transforms-FFTshift
-#           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
+#    Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
 #   CXI-file and/or plots are stored in sub-folder 'test_results'
-# PDB id: 4M0 CRYST1   33.019   33.019   35.771  90.00  90.00  90.00 P 1           1
+# PDB id: 4M0/6M0 CRYST1   33.019   33.019   35.771  90.00  90.00  90.00 P 1           1
 #       CsCl    C:4.09 mol/dm3 (experiment),  Molecular Weight:168.355 g/mol
 #       water   C: 55.5 mol/dm3   
 #   Ratio of C: 4.09/55.5 ??
-# Currently tetsting with pdb-file 1AON from Condor-examples
 # 2019-02-14 v6 with Mask (from exp) Write only, no Plots, no F-tr. Store Source properties. 
 #               With Argparser
 #        @ Caroline Dahlqvist cldah@kth.se
@@ -50,7 +46,7 @@ logger.setLevel("INFO")   ## informs user of "Missed Particle" ##
 # ----- Import Arguments from Command Line: -----
 parser = argpares.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
 
-parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
+#parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
 parser.add_argument('-f', '--fname', dest='sim_name', default='test_mask', type=str, help="The Name of the Simulation.")
 parser_group = parser.add_mutually_exclusive_group(required=True)
@@ -72,8 +68,9 @@ writing = True
 
 # ---- Name Secific Run: ----
 name = args.sim_name#"test_mask"  ## Name of Simulation ##
-run = args.run_numb #"84-119"     ## Run number to compare with in Experiment at SLAC ##
+#run = args.run_numb #"84-119"     ## Run number to compare with in Experiment at SLAC ##
 # run = "84-%i" %(str(args.run_numb))
+
 
 # ----- Construct X-ray Source Instance at 9.5 keV: -----
 #   (highest values  f_d = 0.1-0.2: p_e = 3.E-3 )
@@ -115,6 +112,10 @@ else:
     pdb_file = args.pdb_path    # the PDB-id name including the path, "./CsCl-PDB/4M0"
     parts = args.pdb_path.split('/') 
     pdb =  parts[-1]
+cncntr = pdb.split('M')[0] ## Find which concentration was used and match to Experiment name ##
+assert (cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
+if cncntr == "4": run = "84-119"
+else : run ="84-105"
 
 par ={
 	# CsCl in water from simulated pdb:

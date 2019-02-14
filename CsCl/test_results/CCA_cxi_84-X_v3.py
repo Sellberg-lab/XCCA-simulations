@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser("Analyse Simulated Diffraction Patterns Through
 
 parser = argpares.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
 
-parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
+#parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
 parser.add_argument('-f', '--fname', dest='sim_name', default='test_mask', type=str, help="The Name of the Simulation.")
 parser.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0', type=str, help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
@@ -45,9 +45,13 @@ parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=
 args = parser.parse_args()
 # ----	Parameters unique to file: ----
 frmt = "eps"
-name = args.sim_name #"test_mask"
+name = args.sim_name #"test_mask"  "test_Pnoise"
 pdb= args.pdb_name #"4M0_ed"      # 92 structure-files for each concentration. 
-run = args.run_numb #"84-119"
+cncntr = pdb.split('M')[0] 	## Find which concentration was used and match to Experiment name ##
+assert (cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
+if cncntr == "4": run = "84-119"
+else : run ="84-105"
+#run = args.run_numb #"84-119"
 #run = "84-%int" %(int(args.run_numb)) #"84-119"
 noisy = args.dtct_noise #"none"
 if noisy is None:	noisy = "none" # since None is valid input
@@ -55,7 +59,6 @@ n_spread = args.nose_spread
 if n_spread is None:	n_spread = 0
 #rt = 1		# Ratio of particles (if 1: only CsCl loaded, if != 1: mxture with Water-particle)
 N = args.number_of_shots #5		# Number of iterations performed = Number of Diffraction Patterns Simulated
-
 
 
 # ---- Make an Output Dir: ----
