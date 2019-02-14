@@ -102,15 +102,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-
-# CXI-files (too large to upload to github)
-#CsCl/simulation_results/*.cxi
-#CsCl/test_results/*.cxi
-*.cxi
-
-# Edited PDB-files
-CsCl/CsCl-PDB_ed/**
-
-# MacOS .Ds_Store- files
-.DS_Store
-**/.DS_Store
