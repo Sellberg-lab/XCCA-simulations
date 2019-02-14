@@ -12,12 +12,14 @@
 #              (and FFT-shifted)
 #   Patterson_Image '..._patterson_image_...' are from FFTshift-Fast Fourier transforms-FFTshift
 #           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
-# 2019-01-24 v2 calculate F-Transforms here (not in write file) @ Caroline Dahlqvist cldah@kth.se
-#			compatable with test_CsCl_84-119_v4/v5- generated cxi-files
+# 2019-02-14 v3 calculate F-Transforms here (not in write file) @ Caroline Dahlqvist cldah@kth.se
+#			compatable with test_CsCl_84-X_v6- generated cxi-files
+#			With argparser for input from Command Line
 # Prometheus path: /Users/Lucia/Documents/KTH/Ex-job_Docs/Simulations_CsCl/test_results/
 # lynch path: /Users/lynch/Documents/users/caroline/Simulations_CsCl/test_results/
 #*************************************************************************
 
+import argparse
 import h5py 
 import numpy as np
 from numpy.fft import fftn, fftshift # no need to use numpy.fft.fftn/fftshift
@@ -26,16 +28,33 @@ import matplotlib.pyplot as pypl
 import os, time
 this_dir = os.path.dirname(os.path.realpath(__file__)) # Get path of directory
 
+parser = argparse.ArgumentParser("Analyse Simulated Diffraction Patterns Through Correlations.")
 
+parser = argpares.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
+
+parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
+#parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
+parser.add_argument('-f', '--fname', dest='sim_name', default='test_mask', type=str, help="The Name of the Simulation.")
+parser.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0', type=str, help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
+
+parser.add_argument('-n', '--n-shots', dest='number_of_shots', required=True, type=int, help="The Number of Diffraction Patterns to Simulate.")
+
+parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, type=str, help="The Type of Detector Noise to Simulate: None, 'poisson', 'normal'=gaussian, 'normal_poisson' = gaussian and poisson")
+parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=None, type=float, help="The Spread of Detector Noise to Simulate, if Noise is of Gaussian Type, e.g. 0.005000.")
+
+args = parser.parse_args()
 # ----	Parameters unique to file: ----
 frmt = "eps"
-name = "test_mask"
-pdb= "4M0_ed"      # 92 structure-files for each concentration. 
-run = "84-119"
-noisy = "none"
-n_spread = 0
+name = args.sim_name #"test_mask"
+pdb= args.pdb_name #"4M0_ed"      # 92 structure-files for each concentration. 
+run = args.run_numb #"84-119"
+#run = "84-%int" %(int(args.run_numb)) #"84-119"
+noisy = args.dtct_noise #"none"
+if noisy is None:	noisy = "none" # since None is valid input
+n_spread = args.nose_spread
+if n_spread is None:	n_spread = 0
 #rt = 1		# Ratio of particles (if 1: only CsCl loaded, if != 1: mxture with Water-particle)
-N = 5		# Number of iterations performed = Number of Diffraction Patterns Simulated
+N = args.number_of_shots #5		# Number of iterations performed = Number of Diffraction Patterns Simulated
 
 
 
