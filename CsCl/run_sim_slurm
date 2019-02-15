@@ -8,14 +8,11 @@ name=('test_Pnoise', 'test_noisefree')
 npatterns=5
 
 for conc in "${pdbf[@]}"; do
-	#if rn -e '84-119'; then
-	#	pdb="${pdbf[0]}"
-	#else pdb="${pdbf[1]}"
-	#fi
 	#for ns in "${noise[@]}"; do
 	for (( i=0; i<=1; i++)); do
 		salloc -p fast
 		srun python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
+		echo "Running Simulations of %s with %s-noise..." "$conc" "${noise[i]}"
 	done
 done
 
