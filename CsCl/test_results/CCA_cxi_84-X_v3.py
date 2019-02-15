@@ -28,9 +28,7 @@ import matplotlib.pyplot as pypl
 import os, time
 this_dir = os.path.dirname(os.path.realpath(__file__)) # Get path of directory
 
-parser = argparse.ArgumentParser("Analyse Simulated Diffraction Patterns Through Correlations.")
-
-parser = argpares.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
+parser = argparse.ArgumentParser(description="Analyse Simulated Diffraction Patterns Through Correlations.")
 
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
@@ -71,9 +69,8 @@ if not os.path.exists(outdir):
 # ---- Generate a Storage File for Data/Parameters: ----
 #data_hdf = h5py.File( outdir + '_file_c[w-MASK].hdf5', 'w')	# w: Write/create
 #data_hdf = h5py.File( outdir + '_file_c[w-MASK].hdf5', 'a')	# a: append
-## If generate  Subgroups for LOKI & cxiLT14 in same file with { file_hdf.create_group("cxiLT14py") }##
+## If generating SUBGROUPL for LOKI and cxiLT14 in the same hdf5-file (file_hdf.create_group("cxiLT14py")) ##
 #file_hdf = h5py.File( outdir + '_file_c[w-MASK].hdf5', 'w')	# w: Write/create; a:append			
-
 
 # ---- Choose What to Run: ----
 plot_diffraction =  False #True # if False : No plot
@@ -465,9 +462,14 @@ if XCCA_Loki:
 			#print "normalsation martix after mam_to_nums: \n", norms
 
 			#imgs /= norms[:,:,None] #RuntimeWarning: invalid value encountered in divide => fix np.nan_to_num(...)
-			## instead try:	##																	  !! NOT TRIED YET !!
-			imgs = np.divide(imgs, norms[:,:,None], out=np.zeros_like(imgs), where=norms[:,:,None]!=0)
-			## alt. 	##																			!! NOT TRIED YET !!
+			## instead try:	##												##	  !! NOT TRIED YET !!
+			print "norm-type", type(norms), 
+			print "imgs-type", type(imgs),															
+			#imgs = np.divide(imgs, norms[:,:,None], out=np.zeros_like(imgs), where=norms[:,:,None]!=0)
+			## TypeError: ufunc 'divide' output (typecode 'd') could not be coerced to provided output parameter (typecode 'l') according to the casting rule ''same_kind''
+			imgs = np.true_divide(imgs, norms[:,:,None], out=np.zeros_like(imgs), where=norms[:,:,None]!=0, casting='unsafe')
+			## RuntimeWarning: invalid value encountered in true_divide
+			## alt. 	##													## 		!! NOT TRIED YET !!
 			#def div_nonzero(a, b): /	# from /cxiLT14py/analysisTools/radial_profile.py
     		#	m = b != 0		## m = indices for when b is nonzero
     		#	c = np.zeros_like(a)
@@ -651,13 +653,13 @@ if XCCA_Loki:
 		#data_hdf = h5py.File( out_fname + '_file_c[w-MASK].hdf5', 'a')
 
 		# ---- Set Radial Parameters for Interpolation in Polar-Conversion : ----
-		#### Crystal Dim from CsCL-PDB-files ~33x33x36 Å => 0.03x0.03x0.028 [1/A]
+		#### Crystal Dim from CsCL-PDB-files ~33x33x36 Angstrom => 0.03x0.03x0.028 [1/A]
 		#q_min, q_max = 2.64, 2.71 		# [1/A]  //test values from Sacla-tutorial for Gold nanoparticle
 		#nphi =  int( 2 * pi * q_max ) 	# //test values from Sacla-tutorial for Gold nanoparticle
 		# Radial Plot l440-455: Q[1/A]: 6.8046(6.80456)-6.8056; r[pxls]: 863-1160; with pxls on diagonal
 		#if !calc_RadProfile & ('radial_profile' in data_hdf.keys()): rad_pro = data_hdf['radial_profil']
 		#else: 
-		if not calc_RadProfile: 
+		if not calc_RadProfile and not run_with_MASK: 
 			assert('radial_profile' in data_hdf.keys()),("No Radial Profile saved!!")
 			rad_pro = data_hdf['radial_profile']
 			radial_dim = rad_pro.shape
@@ -865,7 +867,7 @@ if XCCA_Loki:
 				pypl.ylabel(r'$q \, [\AA^{-1}]$', fontsize =18)
 
 			pypl.title("Auto-Correlation [%s]" %cord_sys,  fontsize=16)
-			############### [fig.4b]  Plot Sigma (Normed Auto-Correlation with ±2 std as limits)  ##############
+			############### [fig.4b]  Plot Sigma (Normed Auto-Correlation with +-2 std as limits)  ##############
 			subplt_ave_corrs = True#False 		#### Plot the 2nd plot {adapted from in // GDrive/.../scripts/ave_corrs & 'plot_a_corr.py'} ####
 			if subplt_ave_corrs:
 				pypl.subplot(122) 	#### plot as in // GDrive/.../scripts/ave_corrs & 'plot_a_corr.py' #####

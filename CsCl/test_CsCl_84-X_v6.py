@@ -44,7 +44,7 @@ logger.setLevel("INFO")   ## informs user of "Missed Particle" ##
 
 
 # ----- Import Arguments from Command Line: -----
-parser = argpares.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
+parser = argparse.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
 
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
@@ -59,7 +59,7 @@ parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, typ
 parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=None, type=float, help="The Spread of Detector Noise to Simulate, if Noise is of Gaussian Type, e.g. 0.005000.")
 
 
-args = parser.parser_args()
+args = parser.parse_args()
 ## args.'dest' == args.'long-call-name'
 
 # ----- Set if Plotting and/or Writing to CXI-file : -----
@@ -76,7 +76,8 @@ name = args.sim_name#"test_mask"  ## Name of Simulation ##
 #   (highest values  f_d = 0.1-0.2: p_e = 3.E-3 )
 photon_energy_eV = 9500.
 photon = condor.utils.photon.Photon(energy_eV = photon_energy_eV)  # [eV]
-src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=200E-9, pulse_energy=1.E-3, profile_model= "gaussian")
+#src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=200E-9, pulse_energy=1.E-3, profile_model= "gaussian")
+src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=3E-9, pulse_energy=1.E-1, profile_model= "gaussian")
 
 # ----- Construct Detector Instance (distance= 200mm, 150 mm, 1516x1516 pixels): -----
 #   det = condor.Detector(distance=0.15, pixel_size=110E-06, nx=1516, ny=1516, noise = "poisson")
@@ -88,7 +89,7 @@ dtc_dist = 0.15 # [m] Detector Distance from Sample
 #pxls_y = 1742 # from mask size (1738x1742)
 #x_gap = 0      # [pixels] gap size isn x-dim
 #h_dia = 0      # [pixels] diameter of central hole
-noisy = args.dtct_noise     # Noise type: {None, "poisson", ”normal"=gaussian, "normal_poisson" = gaussian and poisson}
+noisy = args.dtct_noise     # Noise type: {None, "poisson", "normal"=gaussian, "normal_poisson" = gaussian and poisson}
 # # (if 'normal'||'normal_poisson' additional argument noise_spread is required [photons])
 n_spread = args.nose_spread #None
 #if noisy=="normal" or noisy=="normal_poisson": n_spread = 0.005000  # online GUI start at 0,5; tried: 0,000005

@@ -40,17 +40,19 @@ except Exception as e:
 # ----- Import  Logging for Condor for debugging code: -----
 import logging
 logger = logging.getLogger("condor")
-logger.setLevel("DEBUG")
+#logger.setLevel("DEBUG")
 #logger.setLevel("WARNING")
-#logger.setLevel("INFO")   # informs user of "Missed Particle"
+logger.setLevel("INFO")   ## informs user of "Missed Particle" ##
 
 # ----- Set if Plotting and/or Writing to CXI-file : -----
 plotting = False    # comment out to save data in plots directly
 writing = True
 
 # ---- Name Secific Run: ----
-name = "test_mask"  # Name of Simulation
-run = "84-119"     # Run number to compare with in Experiment at SLAC
+name = "test_Pnoise"# "test_mask"  ## Name of Simulation ##
+run = "84-119"     ## Run number to compare with in Experiment at SLAC ##
+## Detector Noise type: {None, "poisson", ”normal"=gaussian, "normal_poisson" = gaussian and poisson} ##
+detector_noise = "poisson" #None 
 
 
 # ----- Construct X-ray Source Instance at 9.5 keV: -----
@@ -69,11 +71,11 @@ dtc_dist = 0.15 # [m] Detector Distance from Sample
 #pxls_y = 1742 # from mask size (1738x1742)
 #x_gap = 0      # [pixels] gap size isn x-dim
 #h_dia = 0      # [pixels] diameter of central hole
-noisy = None    # Noise type: {None, "poisson", ”normal"=gaussian, "normal_poisson" = gaussian and poisson}
+noisy = detector_noise     # Noise type: {None, "poisson", ”normal"=gaussian, "normal_poisson" = gaussian and poisson}
 # # (if 'normal'||'normal_poisson' additional argument noise_spread is required [photons])
 n_spread = None
 if noisy=="normal" or noisy=="normal_poisson": n_spread = 0.005000  # online GUI start at 0,5; tried: 0,000005
-mask_file = "./masks/better_mask-assembled.npy"	# Mask file from Experiment [CXI-Martin run 18-119]
+mask_file = "./masks/better_mask-assembled.npy"	# Mask file from Experiment [CXI-Martin run 18-119] size (1738x1742)
 #mask_file = "better_mask-assembled.npy" # Mask file from Experiment [CXI-Martin run 18-119] (1738x1742)
 mask_array = numpy.load(mask_file)
 #det = condor.Detector(distance=0.15, pixel_size=ps*1E-6, nx=pxls-x_gap, ny=pxls, x_gap_size_in_pixel = x_gap, hole_diameter_in_pixel=h_dia, noise = noisy, noise_spread = n_spread)
@@ -126,10 +128,10 @@ for i in range(N):	#require indent for loop
     #res["real_space"] = real_space      # same as "projected_image" but inverted
     #res["patterson_image"] = fftshift(fftn(fftshift(intensity_pattern)))
     #res["projection_image"] = fftshift(fftn(fftshift(amplitudes_pattern)))
-    res["source"]["incident_energy"] = photon_energy_eV
+    res["source"]["incident_energy"] = photon_energy_eV                 #[eV]
     res["source"]["incident_wavelength"] = photon.get_wavelength()      #[m]
-    res["detector"]["pixel_size_um"] = ps
-    res["detector"]["detector_dist_m"] = dtc_dist
+    res["detector"]["pixel_size_um"] = ps                               #[um]
+    res["detector"]["detector_dist_m"] = dtc_dist                       #[m]
 
     # ----- Write results to Output File: -----
     if writing: W.write(res)	# Write the result (Dictionary) to a CXI-file
