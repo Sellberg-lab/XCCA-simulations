@@ -18,10 +18,3 @@ for c in conc:
             if len(line)==79: print >> outputfile, line[0:77] + line [13]
             else: print >> outputfile, line
         outputfile.close()
-
-#       E.g. print to file:
-# >>> with open('spamspam.txt', 'w', opener=opener) as f:
-#...     print('This will be written to somedir/spamspam.txt', file=f)
-# for python3 (in Python2 must import: from __future__ import print_function)
-#       or use 'write()':
-#f.write("This is line %d\r\n" % (i+1))

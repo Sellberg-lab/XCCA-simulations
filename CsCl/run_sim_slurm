@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#runs=('84-119','84-150') 
+#runs=('119','150')
+pdbf=('4M0', '6M90')
+noise=('poisson', None)
+name=('test_Pnoise', 'test_noisefree')
+npatterns=5
+
+for conc in "${pdbf[@]}"; do
+	#if rn -e '84-119'; then
+	#	pdb="${pdbf[0]}"
+	#else pdb="${pdbf[1]}"
+	#fi
+	#for ns in "${noise[@]}"; do
+	for (( i=0; i<=1; i++)); do
+		salloc -p fast
+		srun ipython test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
+	done
+done
+
+# ipython test_CsCl_84-X_v6.py -n 5 -f test_Pnoise -dn poisson -pdb 4M0 
+##squeue <usr>
