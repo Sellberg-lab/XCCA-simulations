@@ -15,7 +15,7 @@ for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
 	for (( i=0; i<=1; i++)); do
 		salloc -p fast
-		srun ipython test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
+		srun python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
 	done
 done
 
