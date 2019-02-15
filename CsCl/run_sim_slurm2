@@ -1,0 +1,46 @@
+#!/bin/bash
+
+npatterns=5
+pdbf=('4M0_ed' '6M90_ed')
+noise=(None 'poisson') 
+name=('test_noisefree' 'test_Pnoise')
+#noise=('poisson' 'None') # noise[0]=pois, noise[1]=None
+#name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None
+
+
+CURRDIR=`pwd`
+LOGGDIR="$CURRDIR/Loggs"
+if test ! -e $LOGGDIR; then
+	mkdir $LOGGDIR
+	echo "Created "$LOGGDIR
+fi
+
+#nalloc=`squeue -u cldah | wc -l`
+#if [ $nalloc -lt 2 ]; then ## depend on local terminal active ##
+   # salloc -p fast ## time limit ##
+   # salloc -p regular ## 2 days tim elimit ##
+#fi
+for conc in "${pdbf[@]}"; do
+	#for ns in "${noise[@]}"; do
+	for (( i=0; i<=1; i++)); do
+	    echo "Running Simulations of $conc with ${noise[i]}-noise..."
+	    echo '#!/bin/bash'> $LOGGDIR/CsCl_simulate.sh
+	    echo '' >> $LOGGDIR/CsCl_simulate.sh
+        echo '#SBATCH -o $LOGGDIR/CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.out' >> $LOGGDIR/CsCl_simulate.sh
+	    echo '#SBATCH -e $LOGGDIR/CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.err' >> $LOGGDIR/CsCl_simulate.sh
+	    echo '' >> $LOGGDIR/CsCl_simulate.sh
+	    echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
+	    echo 'echo "Node: $HOST" ' >> $LOGGDIR/CsCl_simulate.sh
+	    #if [ $i -eq 1 ]; then  ## [1]=None
+	    if [ $i -eq 0 ]; then 
+	    	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py' '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" >> $LOGGDIR/CsCl_simulate.sh
+	    else	
+        	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" >> $LOGGDIR/CsCl_simulate.sh
+	   	fi
+	   	sbatch -p regular $LOGGDIR/CsCl_simulate.sh
+        ##sbatch -p regular CsCl_simulate.sh
+        ##squeue -u <usr>
+	    ##local term dep## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
+	done
+done
+
