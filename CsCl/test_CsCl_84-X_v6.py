@@ -59,7 +59,7 @@ parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, typ
 parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=None, type=float, help="The Spread of Detector Noise to Simulate, if Noise is of Gaussian Type, e.g. 0.005000.")
 
 
-args = parser.parser_args()
+args = parser.parse_args()
 ## args.'dest' == args.'long-call-name'
 
 # ----- Set if Plotting and/or Writing to CXI-file : -----
@@ -89,7 +89,7 @@ dtc_dist = 0.15 # [m] Detector Distance from Sample
 #pxls_y = 1742 # from mask size (1738x1742)
 #x_gap = 0      # [pixels] gap size isn x-dim
 #h_dia = 0      # [pixels] diameter of central hole
-noisy = args.dtct_noise     # Noise type: {None, "poisson", ”normal"=gaussian, "normal_poisson" = gaussian and poisson}
+noisy = args.dtct_noise     # Noise type: {None, "poisson", "normal"=gaussian, "normal_poisson" = gaussian and poisson}
 # # (if 'normal'||'normal_poisson' additional argument noise_spread is required [photons])
 n_spread = args.nose_spread #None
 #if noisy=="normal" or noisy=="normal_poisson": n_spread = 0.005000  # online GUI start at 0,5; tried: 0,000005
