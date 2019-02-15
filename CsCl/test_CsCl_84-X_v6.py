@@ -79,7 +79,8 @@ photon = condor.utils.photon.Photon(energy_eV = photon_energy_eV)  # [eV]
 #src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=200E-9, pulse_energy=1.E-3, profile_model= "gaussian")
 src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=3E-9, pulse_energy=1.E-1, profile_model= "gaussian")
 
-# ----- Construct Detector Instance (distance= 200mm, 150 mm, 1516x1516 pixels): -----
+
+# ----- Construct Detector Instance (distance= 150 mm, with MASK): -----
 #   det = condor.Detector(distance=0.15, pixel_size=110E-06, nx=1516, ny=1516, noise = "poisson")
 N = args.number_of_shots #5#3#1         # number of diffraction patterns to simulate
 #   N=5  1 h,  40  min 54.5528719425  s
@@ -97,9 +98,7 @@ mask_file = "./masks/better_mask-assembled.npy"	# Mask file from Experiment [CXI
 #mask_file = "better_mask-assembled.npy" # Mask file from Experiment [CXI-Martin run 18-119] (1738x1742)
 mask_array = numpy.load(mask_file)
 #det = condor.Detector(distance=0.15, pixel_size=ps*1E-6, nx=pxls-x_gap, ny=pxls, x_gap_size_in_pixel = x_gap, hole_diameter_in_pixel=h_dia, noise = noisy, noise_spread = n_spread)
-
-# --- Detector with Mask: ----
-det = condor.Detector(distance=dtc_dist, pixel_size=ps*1E-6, noise = noisy, noise_spread = n_spread, mask = mask_array)
+det = condor.Detector(distance=dtc_dist, pixel_size=ps*1E-6, noise = noisy, noise_spread = n_spread, mask = mask_array) ## With Mask from Exp. ##
 t_det_i = time.time()
 
 
@@ -117,7 +116,6 @@ cncntr = pdb.split('M')[0] ## Find which concentration was used and match to Exp
 assert (cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
 if cncntr == "4": run = "84-119"
 else : run ="84-105"
-
 par ={
 	# CsCl in water from simulated pdb:
     "particle_atoms_cscl" :
@@ -185,7 +183,8 @@ for i in range(N):	#require indent for loop
     #pypl.imsave( outdir + "%s_%s_projection_image_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt),  abs(res["projection_image"]))    # "Projection Image"
         # ---- Save "Pattersson" Image: ----
         #pypl.imsave(outdir  + "%s_%s_patterson_image_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), abs(res["patterson_image"]), format=frmt)
-if writing: W.close()
+if writing: W.close(), print "Writing to CXI-file: /%s_%s_%s_(%s-sprd%s)_#%i.cxi  Finished!" %(name,run,pdb,noisy,n_spread,N)
+
 
 print "\t =>finished!"     #{-- if Pyton3 --}: print("\t =>finished!")
 t_prop=time.time()-t_exp    # [s] Propagation Time measured from Exp construction

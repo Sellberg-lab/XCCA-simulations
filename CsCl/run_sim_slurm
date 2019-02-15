@@ -8,16 +8,27 @@ name=('test_Pnoise' 'test_noisefree')
 npatterns=5
 
 nalloc=`squeue -u cldah | wc -l`
-if [ $nalloc -lt 2 ]; then
-    salloc -p fast
-fi
+#if [ $nalloc -lt 2 ]; then ## depend on local terminal active ##
+   # salloc -p fast ## time limit ##
+   # salloc -p regular ## 2 days tim elimit ##
+#fi
 for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
 	for (( i=0; i<=1; i++)); do
 	    echo "Running Simulations of $conc with ${noise[i]}-noise..."
 	    #echo ${noise[i]}
 	    #echo ${pdbf[i]}
-	    srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
+	    echo '#!/bin/bash'> CsCl_simulate.sh
+	    echo '' >> CsCl_simulate.sh
+	    echo '#SBATCH -o CsCl_simulate_'"${name[i]}"'.out' >> CsCl_simulate.sh
+	    echo '#SBATCH -e CsCl_simulate_'"${name[i]}"'.err' >> CsCl_simulate.sh
+	    echo '' >> CsCl_simulate.sh
+	    echo 'HOST=`hostname`' >> CsCl_simulate.sh
+	    echo 'echo "Node: $HOST" ' >> CsCl_simulate.sh
+	    echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" >> CsCl_simulate.sh
+	   
+	    sbatch -p regular CsCl_simulate.sh
+	    ##local term dep## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
 	done
 done
 

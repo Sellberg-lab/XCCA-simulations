@@ -5,7 +5,7 @@
   The program uses Condor to simulate a numer of Diffraction Patterns.
 
   Adapted from 'run_a_script' by Andrew Martin (andrew.martin@rmit.edu.au)
-  	... 1 RUN => Loop to multiple? BASH script?
+  	... 1 RUN => Loop to multiple?
   	2019-02-14         @ Caroline Dahlqvist cldah@kth.se
 
 """
