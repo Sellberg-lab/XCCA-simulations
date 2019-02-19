@@ -22,11 +22,11 @@ import argparse
 import numpy
 from numpy.fft import fftn, fftshift # no need to use numpy.fftn/fftshift
 # %pylab
-import condor
+import condor ## The Simulation Program ##
+
 import os,time #os = for saving in specific dir; time= measure time
 this_dir = os.path.dirname(os.path.realpath(__file__)) # from Condor/example.py, get run-directory
 
-# from Condor/example.py
 # ----- Import plotting form matlab but include Exceptions = Errors : -----
 try:
     import matplotlib.pyplot as pypl
@@ -35,19 +35,22 @@ except Exception as e:
     print(str(e))
     plotting = False
 
-# ----- Import  Logging for Condor for debugging code: -----
+
+# ----- Import Logging for Condor for debugging code: -----
 import logging
-logger = logging.getLogger("condor")
-#logger.setLevel("DEBUG")
+logger = logging.getLogger("condor") ## Use Condors Built-in logger to see what Condor is doing ##
+#logger.setLevel("DEBUG")  ## Every task is printed ##
+logger.setLevel("INFO")    ## informs user of 'Missed Particle' and 'Writing Time' ##
 #logger.setLevel("WARNING")
-logger.setLevel("INFO")   ## informs user of "Missed Particle" ##
+#logger.setLevel("ERROR")
+## 
+#import condor.utils.logger  ## only if Condor is not imported above ?##
+from condor.utils.log import log_info,log_debug
 
 
 # ----- Import Arguments from Command Line: -----
 parser = argparse.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
 
-#parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
-#parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
 parser.add_argument('-f', '--fname', dest='sim_name', default='test_mask', type=str, help="The Name of the Simulation.")
 parser_group = parser.add_mutually_exclusive_group(required=True)
 parser_group.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0', type=str, help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
@@ -57,6 +60,9 @@ parser.add_argument('-n', '--n-shots', dest='number_of_shots', required=True, ty
 
 parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, type=str, help="The Type of Detector Noise to Simulate: None, 'poisson', 'normal'=gaussian, 'normal_poisson' = gaussian and poisson")
 parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=None, type=float, help="The Spread of Detector Noise to Simulate, if Noise is of Gaussian Type, e.g. 0.005000.")
+
+parser.add_argument('-o', '--outpath', dest='outpath', default=this_dir, type=str, help="Path for output")
+
 
 
 args = parser.parse_args()
@@ -68,11 +74,9 @@ writing = True
 
 # ---- Name Secific Run: ----
 name = args.sim_name#"test_mask"  ## Name of Simulation ##
-#run = args.run_numb #"84-119"     ## Run number to compare with in Experiment at SLAC ##
-# run = "84-%i" %(str(args.run_numb))
 
 
-# ----- Construct X-ray Source Instance at 9.5 keV: -----
+# ----- Construct X-ray Source Instance at 9.5 keV (currently Narrower and Intenser than Exp.): -----
 #   (highest values  f_d = 0.1-0.2: p_e = 3.E-3 )
 photon_energy_eV = 9500.
 photon = condor.utils.photon.Photon(energy_eV = photon_energy_eV)  # [eV]
@@ -82,14 +86,10 @@ src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=3E-9, pul
 
 # ----- Construct Detector Instance (distance= 150 mm, with MASK): -----
 #   det = condor.Detector(distance=0.15, pixel_size=110E-06, nx=1516, ny=1516, noise = "poisson")
-N = args.number_of_shots #5#3#1         # number of diffraction patterns to simulate
+N = args.number_of_shots ## number of diffraction patterns to simulate ##
 #   N=5  1 h,  40  min 54.5528719425  s
 ps = 110        # [um] pixel size in um= 1E-6m
 dtc_dist = 0.15 # [m] Detector Distance from Sample
-#pxls = 1738    # number of pixels, 128 (N=1:Runtime=48s), 256 (N=1:Runtime=3min), 512 (N=3:Runtime= 4.6 h),  1024 (N=1:Runtime= 1h 20min, N=3: 12h [Write+plot]), 1516 (N=3:Runtime=32h [plot], 11 h [Write])
-#pxls_y = 1742 # from mask size (1738x1742)
-#x_gap = 0      # [pixels] gap size isn x-dim
-#h_dia = 0      # [pixels] diameter of central hole
 noisy = args.dtct_noise     # Noise type: {None, "poisson", "normal"=gaussian, "normal_poisson" = gaussian and poisson}
 # # (if 'normal'||'normal_poisson' additional argument noise_spread is required [photons])
 n_spread = args.nose_spread #None
@@ -130,18 +130,21 @@ t_exp = time.time() # time marker for measuring propagation-time
 
 # ---- Make an Output Directory: ----
 #outdir = this_dir +'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
-out = this_dir +'/simulation_results/' 
-if not os.path.exists(out):
-    os.makedirs(out)
-#prefix = 
-#out_fname = os.path.join( outdir, prefix)
+#out = this_dir +'/simulation_results/' 
+if args.outpath == this_dir:
+    out = args.outpath +'/simulation_results/'
+    if not os.path.exists(out):
+        os.makedirs(out)
+else: 
+    out = args.outpath 
+
 
 # ----- Output File: -----
 if noisy is None: noisy = "none" # since None is valid input
 if n_spread is None: n_spread = "0" # since None is valid input
-#if writing: W = condor.utils.cxiwriter.CXIWriter("./test_results/%s_84-119_%s_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.cxi"  %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,N))
-#if writing: W = condor.utils.cxiwriter.CXIWriter("./simulation_results/%s_%s_%s_(%s-sprd%s)_#%i.cxi"  %(name,run,pdb,noisy,n_spread,N)) # for reading ps, pxls from file; with ratio, ps & pxls = constant
-if writing: W = condor.utils.cxiwriter.CXIWriter(out+ "/%s_%s_%s_(%s-sprd%s)_#%i.cxi"  %(name,run,pdb,noisy,n_spread,N)) # for reading ps, pxls from file; with ratio, ps & pxls = constant
+#if writing: W = condor.utils.cxiwriter.CXIWriter(out+ "/%s_%s_%s_(%s-sprd%s)_#%i.cxi"  %(name,run,pdb,noisy,n_spread,N)) # for reading ps, pxls from file; with ratio, ps & pxls = constant
+if writing: W = condor.utils.cxiwriter.CXIWriter(out+ "/%s_%s_%s_(%s-sprd%s).cxi"  %(name,run,pdb,noisy,n_spread)) # for reading ps, pxls from file; with ratio, ps & pxls = constant
+
 
 # ---- Make an Output Directory for PLOTS: ----
 if plotting:
@@ -151,25 +154,20 @@ if plotting:
 
 # ----- Simulate N Images: -----
 for i in range(N):	#require indent for loop
-    t_loop = time.time() # time marker for measuring propagation-time
+    #t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prin\
+ts this  ##              
     # ----- Propagate the Experiment = Generate a Diffraction Pattern: -----
     res = Exp.propagate()
-    # Calculate Diffrraction Pattern and Obtain Results in a Dicionary:
-    #intensity_pattern = res["entry_1"]["data_1"]["data"]
-    #amplitudes_pattern = res["entry_1"]["data_1"]["data_fourier"]
-    #real_space = numpy.fft.fftshift(numpy.fft.ifftn(res["entry_1"]["data_1"]["data_fourier"]))
-    #res["real_space"] = real_space      # same as "projected_image" but inverted
-    #res["patterson_image"] = fftshift(fftn(fftshift(intensity_pattern)))
-    #res["projection_image"] = fftshift(fftn(fftshift(amplitudes_pattern)))
     res["source"]["incident_energy"] = photon_energy_eV                 #[eV]
     res["source"]["incident_wavelength"] = photon.get_wavelength()      #[m]
     res["detector"]["pixel_size_um"] = ps                               #[um]
     res["detector"]["detector_dist_m"] = dtc_dist                       #[m]
 
     # ----- Write results to Output File: -----
-    if writing: W.write(res)	# Write the result (Dictionary) to a CXI-file
-    #	print("Writing File Time:", time.time()-t_loop)  #  {-- if Pyton3 --}: 
-    print "Writing File Time:", time.time()-t_loop #   {-- Pyton2.7 --}
+    if writing: W.write(res)	## Write the result (Dictionary) to a CXI-file ##ß
+    #print("Writing File Time [s]:", time.time()-t_loop)  #  {-- if Pyton3 --}: 
+    #print "Writing File Time [s]:", time.time()-t_loop #   {-- Pyton2.7 --}
+    log_info(logger, "Writing no.%i to File Time [s]: %f" %(i+1,time.time()-t_loop))
     # ---- Plot each Pattern: ----
     if plotting:
         frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
@@ -178,22 +176,24 @@ for i in range(N):	#require indent for loop
         # ---- Save Intensity Patterns in Plots:  "Intensity Patterns" = |"Amplitude Patterns"|^2
         pypl.imsave( outdir  + "%s_%s_log10_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), numpy.log10(intensity_pattern), format=frmt)
         pypl.imsave( outdir  + "%s_%s_data-nabs_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), intensity_pattern, format=frmt)
-        # ---- Save Reconstructed Image: ----
-        #pypl.imsave( outdir + "%s_%s_rs_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt),  abs(real_space), format=frmt) # "Reconstructed Image"
-    #pypl.imsave( outdir + "%s_%s_projection_image_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt),  abs(res["projection_image"]))    # "Projection Image"
-        # ---- Save "Pattersson" Image: ----
-        #pypl.imsave(outdir  + "%s_%s_patterson_image_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), abs(res["patterson_image"]), format=frmt)
-if writing: W.close(), print "Writing to CXI-file: /%s_%s_%s_(%s-sprd%s)_#%i.cxi  Finished!" %(name,run,pdb,noisy,n_spread,N)
+if writing: 
+    W.close() 
+    print "Writing to CXI-file: /%s_%s_%s_(%s-sprd%s)_#%i.cxi  Finished!" %(name,run,pdb,noisy,n_spread,N)
 
 
 print "\t =>finished!"     #{-- if Pyton3 --}: print("\t =>finished!")
-t_prop=time.time()-t_exp    # [s] Propagation Time measured from Exp construction
-if t_prop%3600:                  # Print in h, min, s
+t_prop=time.time()-t_exp    ## [s] Propagation Time measured from Exp construction
+if t_prop%3600:                  ## Print in h, min, s
     t_h = int(t_prop)/3600
     t_m =int(t_prop-(t_h)*3600)/60
     t_s = t_prop-t_h*3600-t_m*60
-    print "Propagation Time: ", t_h, "h, ", t_m, " min", t_s, " s"
-elif t_prop%60:                  # or Print in min, s
+    #print "Propagation Time: ", t_h, "h, ", t_m, " min", t_s, " s"
+    log_info(logger, "Propagation Time %i h: %i min: %5.1f s" %(t_h,t_m,t_s))
+    log_debug(logger, "Propagation Time %i h: %i min: %5.1f s" %(t_h,t_m,t_s))
+elif t_prop%60:                  ## or Print in min, s
     t_m =int(t_prop)/60
     t_s=t_prop-t_m*60
-    print "Propagation Time: ", t_m, "min, ", t_s, " s"
+    #print "Propagation Time: ", t_m, "min, ", t_s, " s"
+    log_info(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
+    log_debug(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
+
