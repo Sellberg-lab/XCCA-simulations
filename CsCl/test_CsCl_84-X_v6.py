@@ -155,7 +155,7 @@ if plotting:
 
 # ----- Simulate N Images: -----
 for i in range(N):	#require indent for loop
-    #t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prints this  ##              
+    t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prints this  ##              
     # ----- Propagate the Experiment = Generate a Diffraction Pattern: -----
     res = Exp.propagate()
     res["source"]["incident_energy"] = photon_energy_eV                 #[eV]
