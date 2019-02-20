@@ -1,8 +1,9 @@
 #!/bin/bash
 
 pdbf=('4M0_ed') # '6M90_ed')
+
 npatterns=100 ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
-noise=(None 'poisson')
+noise=(None 'poisson') ## i = 2, 2 cases ##
 name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
 #name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None 
 
@@ -25,7 +26,8 @@ fi
 #fi
 for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
-	for (( i=0; i<=1; i++)); do
+	#for (( i=0; i<=1; i++)); do  ##  ${#a[@]} ##
+	for (( i=0; i<=${#name[@]}; i++)); do  ##  or ${#noise[@]} == ${#name[@]} length should be eq ##
 		echo "Running Simulations of $conc with ${noise[i]}-noise..."
 		echo '#!/bin/bash'> $LOGGDIR/CsCl_simulate.sh
 		echo '' >> $LOGGDIR/CsCl_simulate.sh
@@ -33,6 +35,9 @@ for conc in "${pdbf[@]}"; do
 		#echo '#SBATCH -o '"$LOGGDIR/"'CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.out' >> $LOGGDIR/CsCl_simulate.sh
 		echo '#SBATCH -e $'LOGGDIR/'CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.err' >> $LOGGDIR/CsCl_simulate.sh
 		echo '' >> $LOGGDIR/CsCl_simulate.sh
+		echo '#SBACH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  ## Request 2 GPUs per node for CUDA##
+		
+		echo 'module load cuda' >> $LOGGDIR/CsCl_simulate.sh
 		echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
 		echo 'echo "Node: $HOST" ' >> $LOGGDIR/CsCl_simulate.sh
 		#if [ $i -eq 1 ]; then  ## [1]=None
@@ -41,8 +46,10 @@ for conc in "${pdbf[@]}"; do
 		else	
 			echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
 		fi
+		#module load CUDA
+
 		sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days ##
-		##sbatch -p scavenger $LOGGDIR/CsCl_simulate.sh ## regular max  2days ##
+		##sbatch -p scavenger $LOGGDIR/CsCl_simulate.sh ## regular max  30days ##
 		##local term dep## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
 	done
 done
