@@ -2,7 +2,7 @@
 
 npatterns=100 ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
 noise=(None 'poisson')
-name=('noisefree' 'Pnoise_BeamNarrInt')
+name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
 #name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None 
 
 ## location of run file: /home/cldah/source/XCCA-simulations/CsCl :##
