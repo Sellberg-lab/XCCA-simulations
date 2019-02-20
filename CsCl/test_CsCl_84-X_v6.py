@@ -22,7 +22,8 @@ import argparse
 import numpy
 from numpy.fft import fftn, fftshift # no need to use numpy.fftn/fftshift
 # %pylab
-import condor ## The Simulation Program ##
+import condor ## The Simulation Program ##
+
 
 import os,time #os = for saving in specific dir; time= measure time
 this_dir = os.path.dirname(os.path.realpath(__file__)) # from Condor/example.py, get run-directory
@@ -38,7 +39,7 @@ except Exception as e:
 
 # ----- Import Logging for Condor for debugging code: -----
 import logging
-logger = logging.getLogger("condor") ## Use Condors Built-in logger to see what Condor is doing ##
+logger = logging.getLogger("condor") ## use Condors built-in Logger to see what Condor is doing ##
 #logger.setLevel("DEBUG")  ## Every task is printed ##
 logger.setLevel("INFO")    ## informs user of 'Missed Particle' and 'Writing Time' ##
 #logger.setLevel("WARNING")
@@ -154,8 +155,7 @@ if plotting:
 
 # ----- Simulate N Images: -----
 for i in range(N):	#require indent for loop
-    #t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prin\
-ts this  ##              
+    #t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prints this  ##              
     # ----- Propagate the Experiment = Generate a Diffraction Pattern: -----
     res = Exp.propagate()
     res["source"]["incident_energy"] = photon_energy_eV                 #[eV]
@@ -164,7 +164,7 @@ ts this  ##
     res["detector"]["detector_dist_m"] = dtc_dist                       #[m]
 
     # ----- Write results to Output File: -----
-    if writing: W.write(res)	## Write the result (Dictionary) to a CXI-file ##ß
+    if writing: W.write(res)	## Write the result (Dictionary) to a CXI-file ##
     #print("Writing File Time [s]:", time.time()-t_loop)  #  {-- if Pyton3 --}: 
     #print "Writing File Time [s]:", time.time()-t_loop #   {-- Pyton2.7 --}
     log_info(logger, "Writing no.%i to File Time [s]: %f" %(i+1,time.time()-t_loop))
