@@ -24,7 +24,6 @@ from numpy.fft import fftn, fftshift # no need to use numpy.fftn/fftshift
 # %pylab
 import condor ## The Simulation Program ##
 
-
 import os,time #os = for saving in specific dir; time= measure time
 this_dir = os.path.dirname(os.path.realpath(__file__)) # from Condor/example.py, get run-directory
 
@@ -138,7 +137,7 @@ if args.outpath == this_dir:
         os.makedirs(out)
 else: 
     out = args.outpath 
-
+    assert(os.path.exists(out))("No such directory")
 
 # ----- Output File: -----
 if noisy is None: noisy = "none" # since None is valid input
@@ -164,11 +163,11 @@ for i in range(N):	#require indent for loop
     res["detector"]["detector_dist_m"] = dtc_dist                       #[m]
 
     # ----- Write results to Output File: -----
-    if writing: W.write(res)	## Write the result (Dictionary) to a CXI-file ##
+    if writing: W.write(res)    ## Write the result (Dictionary) to a CXI-file ##
     #print("Writing File Time [s]:", time.time()-t_loop)  #  {-- if Pyton3 --}: 
     #print "Writing File Time [s]:", time.time()-t_loop #   {-- Pyton2.7 --}
-    log_info(logger, "Writing no.%i to File Time [s]: %f" %(i+1,time.time()-t_loop))
-    # ---- Plot each Pattern: ----
+    log_info(logger, "Writing No.%i to File took %f s." %(i+1,time.time()-t_loop))
+    # ---- Plot each Pattern: ----    
     if plotting:
         frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
         intensity_pattern = res["entry_1"]["data_1"]["data"]
@@ -196,4 +195,3 @@ elif t_prop%60:                  ## or Print in min, s
     #print "Propagation Time: ", t_m, "min, ", t_s, " s"
     log_info(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
     log_debug(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
-
