@@ -15,14 +15,15 @@
 # 2019-02-14 v3 calculate F-Transforms here (not in write file) @ Caroline Dahlqvist cldah@kth.se
 #			compatable with test_CsCl_84-X_v6- generated cxi-files
 #			With argparser for input from Command Line
-# Prometheus path: /Users/Lucia/Documents/KTH/Ex-job_Docs/Simulations_CsCl/test_results/
-# lynch path: /Users/lynch/Documents/users/caroline/Simulations_CsCl/test_results/
+# Prometheus path: /Users/Lucia/Documents/KTH/Ex-job_Docs/Simulations_CsCl/
+# lynch path: /Users/lynch/Documents/users/caroline/Simulations_CsCl/
 #*************************************************************************
 
 import argparse
 import h5py 
 import numpy as np
 from numpy.fft import fftn, fftshift # no need to use numpy.fft.fftn/fftshift
+import matplotlib.cm as cm
 import matplotlib.pyplot as pypl
 # %pylab	# code as in Matlab
 import os, time
@@ -32,17 +33,20 @@ parser = argparse.ArgumentParser(description="Analyse Simulated Diffraction Patt
 
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=str, help="The Name of the Experiment run to Simulate, e.g. '84-119'.")
 #parser.add_argument('-r', '--run-number', dest='run_numb', required=True, type=int, help="The Number Assigned to the Experiment run to Simulate, e.g. '119' for '84-119'.")
-parser.add_argument('-f', '--fname', dest='sim_name', default='test_mask', type=str, help="The Name of the Simulation.")
-parser.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0', type=str, help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
+parser.add_argument('-f', '--fname', dest='sim_name', default='test', type=str, help="The Name of the Simulation. Default name is 'test'.")
+parser.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0_ed', type=str, help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
 
-parser.add_argument('-n', '--n-shots', dest='number_of_shots', required=True, type=int, help="The Number of Diffraction Patterns to Simulate.")
+parser.add_argument('-n', '--n-shots', dest='number_of_shots', required=True, type=int, help="The Number of Diffraction Patterns to Simulate. Required for run. Must be integer.")
 
-parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, type=str, help="The Type of Detector Noise to Simulate: None, 'poisson', 'normal'=gaussian, 'normal_poisson' = gaussian and poisson")
+parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, type=str, help="The Type of Detector Noise to Simulate: None, 'poisson', 'normal'=gaussian, 'normal_poisson' = gaussian and poisson. Default is 'None'.")
 parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=None, type=float, help="The Spread of Detector Noise to Simulate, if Noise is of Gaussian Type, e.g. 0.005000.")
+
+parser.add_argument('-q', '--q-range', dest='q_range', nargs=2, default="0 850", type=int, help="The Pixel range to caluate polar images and their correlations. Default is '0 850'.") ##type=float)
 
 args = parser.parse_args()
 # ----	Parameters unique to file: ----
 frmt = "eps"
+N = args.number_of_shots #5		# Number of iterations performed = Number of Diffraction Patterns Simulated
 name = args.sim_name #"test_mask"  "test_Pnoise"
 pdb= args.pdb_name #"4M0_ed"      # 92 structure-files for each concentration. 
 cncntr = pdb.split('M')[0] 	## Find which concentration was used and match to Experiment name ##
@@ -56,15 +60,33 @@ if noisy is None:	noisy = "none" # since None is valid input
 n_spread = args.nose_spread
 if n_spread is None:	n_spread = 0
 #rt = 1		# Ratio of particles (if 1: only CsCl loaded, if != 1: mxture with Water-particle)
-N = args.number_of_shots #5		# Number of iterations performed = Number of Diffraction Patterns Simulated
+
+#### GDrive/.../Exp_CXI-Martin/scripts/corpairs.py: min = 54; rmax = 1130 ####
+#rmin, rmax = 300, 500 ## interesting peaks in Exp. at  200-600 alt 300-500## 
+rmin, rmax =  args.q_range[0], args.q_range[1] ## [pixels] The Range for evaluating polar plots and Correlations ##
+
+
+
+# ---- Choose What to Run: ----
+random_noise_1quad =True#False			## Generate random Noise in one quardant ##
+
+plot_diffraction = False#True#False#		## if False : No plot of Diffractin Patterns ##
+XCCA_Loki = True #False#True #	#				## if True: run XCCA with Loki-pkg ##
+XCCA_cxiLT14py = False#True#False # True	## if True: run XCCA with A.Martins Scripts ##
+
+Ampl_image = False#False#True			## The complex images in Amplitude Patterns instead of Intensity Patterns ##
+add_noise = True#False						## Add Generated Noise to Correlations ##
 
 
 # ---- Make an Output Dir: ----
-outdir = this_dir +'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
+outdir = this_dir+ '/simulation_results' +'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
 if not os.path.exists(outdir):
 	os.makedirs(outdir)
-#prefix = 
-#out_fname = os.path.join( outdir, prefix)
+outdir_raw =outdir ## For storting raw imgs if plot_diffraction=TRUE ##
+if random_noise_1quad:
+	outdir = outdir + '/random_noise_1quad_(%s_%s_%s)/' %(pdb,noisy,n_spread)
+	if not os.path.exists(outdir):
+		os.makedirs(outdir)
 
 # ---- Generate a Storage File for Data/Parameters: ----
 #data_hdf = h5py.File( outdir + '_file_c[w-MASK].hdf5', 'w')	# w: Write/create
@@ -72,15 +94,10 @@ if not os.path.exists(outdir):
 ## If generating SUBGROUPL for LOKI and cxiLT14 in the same hdf5-file (file_hdf.create_group("cxiLT14py")) ##
 #file_hdf = h5py.File( outdir + '_file_c[w-MASK].hdf5', 'w')	# w: Write/create; a:append			
 
-# ---- Choose What to Run: ----
-plot_diffraction =  False #True # if False : No plot
-XCCA_Thor = False # False	# if True: run XCCA with Thor-pkg
-XCCA_Loki = True #	# if True: run XCCA with Loki-pkg
-XCCA_cxiLT14py = False#True#False # True	# if True: run XCCA with A.Martins Scripts
 
 # ----	Read in Data from CXI-file: ----
-#data_file = this_dir +'/%s_%s_%s_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.cxi'%(name,run,pdb,rt*10,ps,pxls,noisy,n_spread,N)
-data_file =this_dir +'/%s_%s_%s_(%s-sprd%s)_#%i.cxi'%(name,run,pdb,noisy,n_spread,N)
+data_file =this_dir+'/simulation_results' +'/%s_%s_%s_(%s-sprd%s)_#%i.cxi'%(name,run,pdb,noisy,n_spread,N)
+#data_file =this_dir+'/simulation_results' +'/%s_%s_%s_(%s-sprd%s).cxi'%(name,run,pdb,noisy,n_spread)
 with h5py.File(data_file, 'r') as f:
 		intensity_pattern = np.asarray(f["entry_1/data_1/data"])
 		amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"])
@@ -105,15 +122,16 @@ with h5py.File(data_file, 'r') as f:
 # np.fft.ifftn Compute the N-dimensional inverse discrete Fourier Transform
 
 # ---- if N not in file-name: ----
-#N = intensity_pattern.shape[0]
+#N = intensity_pattern.shape[0] 
+#print "\n #### %i Diffraction Patterns Loaded #### \n" %(N)
 
 I_p_w_mask_arr0=np.multiply(intensity_pattern[0],mask[0]) #(1738, 1742) Mask from CXI: a = np.array([[1,2],[3,4]]), b = np.array([[5,6],
 
 #	--- Mask from assembly (only 0.0 an 1.0 in data): ---
-mask_better = np.load("%s/../masks/better_mask-assembled.npy" %str(this_dir))
+mask_better = np.load("%s/masks/better_mask-assembled.npy" %str(this_dir))
 ## if data is not NOT binary:  ione =np.where(mask_better < 1.0), mask_better[ione] = 0.0 # Make sure that all data < 1.0 is 0.0 	##  
 mask_better = mask_better.astype(int) 	## Convert float to integer ##
-#print"Dim of the assembled mask: ", mask_better.shape
+print"Dim of the assembled mask: ", mask_better.shape
 
 Ip_w_mb=np.multiply(intensity_pattern,mask_better)	# Intensity Pattern with Mask
 Ap_w_mb=np.multiply(amplitudes_pattern,mask_better) # Amplitude Pattern (Complex) with Mask
@@ -121,103 +139,236 @@ Patt_w_mb=np.multiply(patterson_image,mask_better) # Patterson Image (Autocorrel
 
 
 #	---- Gain from file (divide images with gain?): ----	# Currently not implemented !
-gn = np.load("%s/../gain/gain_lr6716_r78.npy" %str(this_dir))	# from exp-file run 84-119
-gn[ gn==0] = 1
+#gn = np.load("%s/gain/gain_lr6716_r78.npy" %str(this_dir))	# from exp-file run 84-119
+#gn[ gn==0] = 1
 #img1 = img1*mask / gain
 # or polar_gain = Interp.nearest(ass_gain), corr_g = gc.autocorr(), sig_g = corr_g / corr_g[:,0][:,None]
 
+
 # ---- Centre Coordiates Retrieved Directly from File: ----
-## with the dimensions fs = fast-scan {x}, ss = slow-scan {y} ##
-cntr = np.load("%s/../centers/better_cent_lt14.npy" %str(this_dir))	# from exp-file run 84-119
+## with the dimensions (X,Y): fs = fast-scan {x}, ss = slow-scan {y} ##
+cntr = np.load("%s/centers/better_cent_lt14.npy" %str(this_dir))	# from exp-file run 84-119
 print "Centre from file: ", cntr ## [881.43426    863.07597243]
 #cntr_msk =[ int((mask_better.shape[1]-1)/2), int((mask_better.shape[0]-1)/2) ] ## IndexError: index 3028466 is out of bounds for axis 1 with size 3027596
 #cntr_msk =[ (mask_better.shape[1]+1)/2.0, (mask_better.shape[0]+1)/2.0 ] ## IndexError: index 3028498 is out of bounds for axis 1 with size 3027596
-cntr_msk =[ (mask_better.shape[1]-1)/2.0, (mask_better.shape[0]-1)/2.0 ] ## (X,Y)
+#cntr_msk =[ (mask_better.shape[1]-1)/2.0, (mask_better.shape[0]-1)/2.0 ] ## (X,Y)
+cntr_msk =np.asarray([(mask_better.shape[1]-1)/2.0, (mask_better.shape[0]-1)/2.0 ]) ## (X,Y)
 print "\n Centre from Mask: ", cntr_msk ##[870, 868]; [869.5, 871.5]; [871.5, 869.5]
-cntr= cntr_msk 	## if use center point from the Msak ##
+#print "\n Center from Mask data-type: ", type(cntr_msk)
+cntr= cntr_msk 	## (X,Y) if use center point from the Msak ##
+#cntr_int = cntr.astype(int) ## (cuts decimal) for the center coordinates in pixles as integers ##
+cntr_int=np.around(cntr).astype(int)  ## (rounds to nearest int) for the center coordinates in pixles as integers ##
+print "\n Centre as Integer: ", cntr_int,  "\n"
+
 ####################################################################################
 ####################################################################################
-#------------------------- Plot Read-in Data 1st Pattern: -------------------------#
+#--------------------- Generate Random Noise in 1 quadrang: -----------------------#
+####################################################################################
+####################################################################################
+if random_noise_1quad:
+	#ip = intensity_pattern[0] ## Look at the 1st Intensity Pattern ##
+	ip = intensity_pattern
+	#print "Dim of ip: ", ip.shape
+	nlevel = 0.8	## highest level of noise in percent of Maximum signal ##
+	
+	# ---- Noise Matrices (Y, X) : ---- #
+	rand_1quad_b1 = np.ones_like(ip,dtype=float)	## noise-free = 1 ##
+	rand_1quad_b0 = np.zeros(ip.shape, dtype=float) ## noise-free = 0 ##
+	#print "Dim of b1: ", rand_1quad_b1.shape
+	#print "Dim of b0: ", rand_1quad_b0.shape
+
+
+	#---- Noise reduce the signal pxl-by-pxl by 0-nlevel % : ---- #
+	inv_nlevel = np.around(1.0-nlevel, 1) ## since in python 1.0-0.8=0.19999999999999996 ##
+
+	## Max 80 % of the signal is retained (min of 20% noise): ##
+	rand_b1_max = rand_1quad_b1 
+	## Min 80 % of the signal is retained (max of 20% noise): ##
+	rand_b1_min =rand_1quad_b1 
+
+	for idx in range(intensity_pattern.shape[0]):
+		## rand(n,m) yield nxm of numbers (0.0,1.0); raindint(low,high) ##
+		rand_b1_max[idx][:cntr_int[1],:cntr_int[0]] =  np.random.rand(cntr_int[1], cntr_int[0])*inv_nlevel
+		rand_b1_min[idx][:cntr_int[1],:cntr_int[0]] =  1.0-np.random.rand(cntr_int[1], cntr_int[0])*nlevel
+		#print "rand noise value: ",  rand_b1_max[idx][:cntr_int[1],:cntr_int[0]].max()
+
+	#---- Add the Noise to the Intensity Patterns : ---- #
+	img_w_rand_noise_b1_mx = (ip*rand_b1_max)
+	img_w_rand_noise_b1_mn = (ip*rand_b1_min)
+	#print "Dim of 'img_w_rand_noise_b1_mx': ", img_w_rand_noise_b1_mx.shape ## = (5, 1738, 1742) ##
+	
+	#---- Add the Mask to the partially Noisy Intensity Patterns : ---- #
+	img_w_rand_noise_b1_mx= np.multiply(img_w_rand_noise_b1_mx,mask_better)
+	img_w_rand_noise_b1_mn= np.multiply(img_w_rand_noise_b1_mn,mask_better)
+	print "\n ... imgs for b1 min & max generated!"
+
+	 
+	#---- Noise 0-'nlevel'% of max signal in quadrant of 1st Pattern (avoid centre max from simulation box): ---- #
+	#img_w_rand_noise_b0 = np.empty(ip.shape, dtype=float)
+	#import sys 		## foor-loop very long 870x868 times ##
+	#for i in range(cntr_int[0]):	## X -direction {Horizontal/ Rows} 
+	#	for j in range(cntr_int[1]):	## Y -direction {Vertical/ Columns}
+	#		rand_1quad_b0[j][i] = np.random.uniform(1, ip.max()*nlevel)
+	#		sys.stdout.write("\n vadule at (%i,%i):" %(j,i)), sys.stdout.write(str(rand_1quad_b0[j][i])), sys.stdout.flush(),
+	for idx in range(intensity_pattern.shape[0]):
+		## rand(n,m) yield nxm of numbers (0.0,1.0); raindint(low,high) ##
+		rand_1quad_b0[idx][:cntr_int[1],:cntr_int[0]] = np.random.rand(cntr_int[1], cntr_int[0])*ip[idx][:cntr_int[1]-250,:cntr_int[0]-250].max()*nlevel
+		# img_w_rand_noise_b0[idx] = (ip[idx]-rand_1quad_b0[idx])
+	img_w_rand_noise_b0 = (ip-rand_1quad_b0)
+	img_w_rand_noise_b0= np.multiply(img_w_rand_noise_b0,mask_better)
+	#print "Dim of 'img_w_rand_noise_b0 ': ",img_w_rand_noise_b0.shape  ## = (5, 1738, 1742) ##
+	print "\n ... img for b0 generated!"
+
+
+	if add_noise:  ## Choose Which Noise Profile to use in CCA ##
+		## img_w_rand_noise_b1_mx;  img_w_rand_noise_b1_mn ; img_w_rand_noise_b0 
+		#Ip_w_mb_w_Ns = img_w_rand_noise_b1_mx
+		#Ip_w_mb_w_Ns = img_w_rand_noise_b1_mn
+		Ip_w_mb_w_Ns = img_w_rand_noise_b0 
+	#	Ap_w_mb= ...
+	## polar_imgs = np.array( [ polar_mask* Interp.nearest(img[i]) for i in range( N) ] )
+
+	############## PLOT 1st Pattern with Noise [fig. noise]:#######################  
+	fig_noise = pypl.figure('noise', figsize=(12,10)) ## R1: Noise Maps; R2: Patterns ##
+	indx = 2 	## Which pattern to Plot ## 
+
+	## matplotlib.pyplot.clim(vmin=None, vmax=None) ##
+	#vmax = ip[4].max() # or amax(array, axis), max(a,b)= max of a and b
+	vmax = max(np.amax(img_w_rand_noise_b1_mx), np.amax(img_w_rand_noise_b0)) ## max from rand-noise ##
+	print "max value in paterns: ", vmax
+
+	## PLOT of Max 80 % of the signal is retained (min of 20% noise): ##
+	pypl.subplot(231)
+	pypl.imshow(rand_b1_max[indx], cmap='viridis')
+	pypl.title('Noise Map of max %i %% of signal retained \n' %(inv_nlevel*100), fontsize=12)
+	pypl.colorbar( shrink=0.7) #pypl.colorbar(orientation="horizontal")
+	pypl.subplot(234)
+	img_b1_mx = np.ma.masked_where(mask_better == 0, img_w_rand_noise_b1_mx[indx])
+	#print "Dim of 'img_b1_mx': ", img_b1_mx.shape
+	#pypl.imshow(img_b1_mx[indx], vmin=0.1, cmap='viridis') ## must fix for loop ##
+	#pypl.imshow(img_b1_mx, vmin=0.1, cmap='viridis')
+	pypl.imshow(img_b1_mx, vmin=0.1, vmax=vmax, cmap='viridis')
+	pypl.title('Noise: max %i %% of signal retained \n' %(inv_nlevel*100), fontsize=12)
+	cmap = cm.viridis
+	cmap.set_bad('grey',1.)
+	cmap.set_under('white',1.)
+	 
+
+	## PLOT of Min 80 % of the signal is retained (max of 20% noise): ##
+	pypl.subplot(232)
+	pypl.imshow(rand_b1_min[indx], cmap='viridis')
+	pypl.title('Noise Map of min %i %% of signal retained \n' %(inv_nlevel*100), fontsize=12)
+	pypl.colorbar( shrink=0.7)
+	pypl.subplot(235)
+	img_b1_mn = np.ma.masked_where(mask_better == 0, img_w_rand_noise_b1_mn[indx])
+	#pypl.imshow(img_b1_mn[indx], vmin=0.1, cmap='viridis')  ## must fix for loop ##
+	#pypl.imshow(img_b1_mn, vmin=0.1, cmap='viridis')
+	pypl.imshow(img_b1_mn, vmin=0.1, vmax=vmax, cmap='viridis')
+	pypl.title('Noise: min %i %% of signal retained \n' %(inv_nlevel*100), fontsize=12)
+	cmap = cm.viridis
+	cmap.set_bad('grey',1.)
+	cmap.set_under('white',1.)
+
+
+	## PLOT of Noise prop to max signal of 1st Pattern : ##
+	pypl.subplot(233)
+	pypl.imshow(rand_1quad_b0[indx], cmap='viridis')
+	pypl.title('Noise Map of max %i %% of Signal Maximum \n' %(nlevel*100), fontsize=12)
+	pypl.colorbar( shrink=0.7)
+	pypl.subplot(236)
+	img_b0 = np.ma.masked_where(mask_better == 0, img_w_rand_noise_b0[indx])
+	#print "Dim of 'img_b0': ",img_b0.shape
+	#pypl.imshow(img_b0[indx], vmin=0.1, cmap='viridis')  ## must fix for loop ##
+	#pypl.imshow(img_b0, vmin=0.1, cmap='viridis')
+	pypl.imshow(img_b0, vmin=0.1, vmax=vmax, cmap='viridis')
+	pypl.title('Noise: max %i %% of Signal Maximum \n' %(nlevel*100), fontsize=12)
+	cmap = cm.viridis
+	cmap.set_bad('grey',1.)
+	cmap.set_under('white',1.)
+	#cb = pypl.colorbar()#im1, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)
+	## Colorbar Separate from subplot ##
+	#pypl.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
+	#cax = pypl.axes([0.85, 0.1, 0.075, 0.8]) # left, bottom, width, hight
+	cax = pypl.axes([0.065, 0.03, 0.88, 0.04])  ## left, bottom, width, hight ##
+	pypl.colorbar(cax=cax, orientation='horizontal')
+
+	pypl.suptitle("Random Noise in 2nd quadrant of Pattern No.%i" %(indx+1), fontsize=16)
+	pypl.subplots_adjust(wspace=0.4, hspace=0.4, left=0.07, right=0.95)
+	# cmap = 'jet'
+	pic_name = '%s_%s_(%s-%s)_subplot_of_Random_Noise_1st-quad_Pattern-%i_(%iprc).%s'%(name,pdb,noisy,n_spread,(indx+1),nlevel*100,frmt)
+ 	pypl.savefig(outdir + pic_name)
+ 	print "Plot saved in %s \n as %s" %(outdir, pic_name)
+	#pypl.show()
+	del pic_name
+	
+####################################################################################
+####################################################################################
+#------------------------- Plot Read-in Data n_plts Patterns: -------------------------#
 ####################################################################################
 ####################################################################################
 if plot_diffraction:
 	pypl.rcParams["figure.figsize"] = (17,12)
 	pypl.rcParams.update({'axes.labelsize': 16, 'xtick.labelsize':'x-large', 'ytick.labelsize':'x-large'})
+	n_plts = 4
+	#for i in range(N): # Ip_w_mb.shape[0] = N ## For large N only take a few # np.arange(0, N, N/4) or 
+	selected_shots = np.linspace(0, N, n_plts).astype(int) ## a list of only 4 selected Diffraction Patterns ##
+	for shot in selected_shots: 			## only plot 4 Patterns ##
+		#i = selected_shots.index(shot)  	## instead of a counter, use the index to number the plots ##
+		i = list(selected_shots).index(shot)
+		
 
-	for i in range(N): # Ip_w_mb.shape[0] = N
-		pypl.subplot(3,N,i+1) #(N,3, 1+i*3)
-		pypl.imshow(Ip_w_mb[i]) # == pypl.imshow(abs(Ap_w_mb[0])**2)
+		# ---- Intensity Pattern : ---- #
+		#pypl.subplot(3,N,i+1) #(N,3, 1+i*3)
+		pypl.subplot(3,n_plts,i+1)
+		#pypl.imshow(Ip_w_mb[i]) # == pypl.imshow(abs(Ap_w_mb[0])**2) ##Poisson noise ->Zero ##
+		Ip_ma_single_shot = np.ma.masked_where(mask_better == 0, Ip_w_mb[i]) ## Check the # photons ##
+		pypl.imshow(Ip_ma_single_shot, vmin=0.1, cmap='viridis')
 		pypl.ylabel('y Pixels')
 		pypl.xlabel('x Pixels')
 		pypl.title('Pattern %i: ' %(i+1))
 
-		pypl.subplot(3,N,N+(i+1)) #(N,3, 2+i*3)
-		pypl.imshow(abs(Ap_w_mb[i]))
+
+		# ---- Amplitude Pattern : ---- #
+		#pypl.subplot(3,N,N+(i+1)) #(N,3, 2+i*3)
+		pypl.subplot(3,n_plts,n_plts+(i+1)) 
+		#pypl.imshow(abs(Ap_w_mb[i]))
+		Ap_ma_shot = np.ma.masked_where(mask_better == 0, Ap_w_mb[i]) ## Check the # photons ##
+		pypl.imshow(abs(Ap_ma_shot), vmin=0.1, cmap='viridis')
 		pypl.ylabel('y Pixels')
 		pypl.xlabel('x Pixels')
 
-		pypl.subplot(3,N,(N*2)+(i+1)) #(N,3, 3+i*3)
+
+		# ---- Patterson Image (Aut-correlation) : ---- #
+		#pypl.subplot(3,N,(N*2)+(i+1)) #(N,3, 3+i*3)
+		pypl.subplot(3,n_plts,(n_plts*2)+(i+1)) 
 		pypl.imshow(abs(Patt_w_mb[i])) # Without Mask: pypl.imshow(abs(patterson_image[0]))
 		pypl.ylabel('y Pixels')
 		pypl.xlabel('x Pixels')
 
+
 		pypl.suptitle("Intensity Pattern vs Amplitude Pattern vs Patterson Image", fontsize=16)
-		pypl.tight_layout() 
+		cmap = cm.viridis
+		cmap.set_bad('grey',1.)
+		cmap.set_under('white',1.)
+		pypl.subplots_adjust(wspace=0.4, hspace=0.4, left=0.07, right=0.99)
+		#pypl.tight_layout() 
+		## tight_layot works with 3x5 !3x4 :in get_tight_layout_figure  div_row, mod_row = divmod(max_nrows, rows), div_col, mod_col = divmod(max_ncols, cols),if (mod_row != 0) or (mod_col != 0):,raise RuntimeError("")
+	del Patt_w_mb ## Not used in rest of script ##
 	##### Save Plot: #### prefix = "subplot_diffraction_Patterson_w_Mask", out_fname = os.path.join( outdir, prefix)
- 	#pic_name = 'subplot_diffraction_Patterson_w_Mask.%s'%(frmt)
- 	#pypl.savefig(outdir + pic_name)
- 	#print "Plot saved in %s \n as %s" %(outdir, pic_name)
-	pypl.show()
+ 	pic_name = '%s_%s_(%s-%s)_subplot_diffraction_Patterson_w_Mask.%s'%(name,pdb,noisy,n_spread,frmt)
+ 	pypl.savefig(outdir_raw + pic_name)
+ 	print "Plot saved in %s \n as %s" %(outdir, pic_name)
+	#pypl.show()
 # ************************************************************************************************
 #pypl.rcParams.update({'axes.labelsize': 16, 'xtick.labelsize':'small', 'ytick.labelsize':'small'})
 #pypl.rcParams["figure.figsize"] = (15,7)
-# pypl.figure(figsize = (10, 10))
+#pypl.figure(figsize = (10, 10))
 #pypl.subplots_adjust(wspace=0.1, hspace=0.2, left=0.07, right=0.99)
 #cb = pypl.colorbar(im1, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)	# work but wrong scale
 #cb.set_label(r'Intensity ')
 #cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
 #cb.update_ticks()
 # ************************************************************************************************
-
-####################################################################################
-####################################################################################
-#------------------------------------ Thor XCCA: ----------------------------------#
-####################################################################################
-####################################################################################
-if XCCA_Thor:	# ???? how to implemwnt without 'shot' class or dector-class (wit grids) ????
-	import tables # own records in Python and collections of them (i.e. a table)
-	from thor import xray
-
-	# from lynch-file:
-	#ss = xray.Shotset.from_xxxx(data_file, mask = none) # require '.shot'-file !!
-	#ip = ss.intensity_profile(q_spacing=0.01)
-	#pypl.figure(), pypl.plot(ip[:,0], ip[:,1], lw=2), pypl.show()
-	#q_values = np.arange(0.001, 0.4, 0.001) # what "rings" to interpolate onto, in inv angstroms
-	#r = ss.to_rings(q_values)	#xray.Shotset.to_rings(...)  - class RINGS(object) !!
-	#intra = r.correlate_intra(q1, q2)
-	#inter = r.correlate_inter(q1, q2)
-
-
-	#Returns:  rings : thor.xray.Rings:  A Rings instance, containing the simulated shots.
- 	#  return cls(q_values, polar_intensities, k, polar_mask=None)
-	import condor
-	from math import *
-	photon = condor.utils.photon.Photon(energy_eV =9500)
-	wl = photon.get_wavelength() #[m] wavelength => [m]*1E+10 = [Angstrom]
-	k_m = 2.0 * np.pi / wl 	# [1/m] wavenumber		=> [1/m]*(1/1E+10) = [1/Angstrom]
-	k = k_m*1E-10	# [1/Angstrom] wavenumber
-	num_phi = 360
-	q_values =np.arange(0.001, 0.4, 0.001)		# from e.g.
-	#pi, pm = self.interpolate_to_polar(q_values, num_phi) #falls on func impl following 5 lines
-	polar_intensities_output = []
-	#polar_mask = self._implicit_interpolation(q_values, num_phi, polar_intensities_output)
-	# ?? _implicit_interpolation -> self.detector._basis_gird.get_grid()	??????????????????????
-	if type(polar_intensities_output) == list:
-		polar_intensities_output = np.vstack(polar_intensities_output)
-	pi, pm = polar_intensities_output, polar_mask
-	rings =thor.xray.Rings(q_values= q_values, polar_intensities=pi, k=k, polar_mask = pm)	# self, q_values, polar_intensities, k
-	# from thor.utils import Parser %% thor/src/utils.py
-	# in math2.py def fft_acf(data):
 
 ####################################################################################
 ####################################################################################
@@ -242,18 +393,6 @@ if XCCA_Loki:
 	out_fname = os.path.join( loki_folder, prefix) 	# with directory
 	#output_hdf = h5py.File( prefix + '.hdf5', 'w' )	# a - read/write/create, r - write/must-exist
 
-	#print "MAX: ", mask_better.max(), " Min: ", mask_better.min() # = MAX:  1.0  Min:  0.0
-	# ---- Mask in float() and not int(): ----- 	#	.shape() = (rows, columns)
-	#rows,col = mask_better.shape[0],mask_better.shape[1]		# Rows = Y: 1742, # Columns = X:1738				
-	#print"rows ", rows, "&  columns ", col
-	#Matrix = [[0 for x in range(col)] for y in range(rows)] 
-	#m_b = np.empty(mask_better.shape, dtype=int) 	# Empty Array for generating int(mask)
-	#for i in range(rows):		# Rows = Y,  1742
-	#	for j in range(col):	# Columns = X, 1738
-	#		#m_b[i,j]= int(mask_better[i, j])	
-	#		m_b[i][j]= int(mask_better[i][j])
-	#print "MAX(int): ", m_b.max(), " Min(int): ", m_b.min()
-	#m_b = mask_better.astype(int)	# instead of 2D-loop: use numpy.ndarray.astype to type-cast to int
 	m_b = mask_better 	# if converting to int directly after load()
 	#print "MAX(int): ", m_b.max(), " Min(int): ", m_b.min()
 
@@ -442,7 +581,7 @@ if XCCA_Loki:
 		
 
 	#############################################################################################
-	##### -----  CENTRE (where beam hits) from Experiment : ---- ################################
+	##### -----  CENTRE (where beam hits) with LOKI from Experiment : ---- ################################
 	#############################################################################################
 	if from_file_c:
 		from pylab import *	# load all Pylab & Numpy
@@ -495,36 +634,40 @@ if XCCA_Loki:
 		#pix2invang = lambda qpix : sin(arctan(qpix*(ps*1E-6)/dtc_dist ))*4*pi/wl_A # no div2 {atan yields right triangle of h=qpix*pixel_size & det_dist along zentral nominal axis => half-angle in plane
 		invang2pix = lambda qia : tan(2*arcsin(qia*wl_A/4/pi))*dtc_dist/(ps*1E-6)
 
-		###################### Choose Calculations: ###################
-		run_with_MASK = True 			# Run with Intensity_Pattern*Better-Mask_Assembled
-
-		calc_RadProfile = False#True 		# Calculate the radial Profile + Save to File
+		###################### Choose Calculations: ########################################
+		run_with_MASK = True 			## Run with Intensity_Pattern*Better-Mask_Assembled ##
+		#Ampl_image = True				## The complex images in Amplitude Patterns instead of Intensity Patterns ##
+		calc_RadProfile = False#True 	## Calculate the radial Profile + Save to File ##
 		plot_RadProfile = False#True
-		plot_polar_img = False 			# Plot 1st Diffraction Patterns Polar Image [Polar Data(normalised), Polar Data(un-norm), Mask, phi-bins, q-map]
-		save_polar_param = False 		# For Saving Calculated Parameters to the file
+		plot_polar_img = True 			## Plot 1st Diffraction Patterns Polar Image [Polar Data(normalised), Polar Data(un-norm), Mask, phi-bins, q-map] ##
+		save_polar_param = False 		## For Saving Calculated Parameters to the file ##
 
-		if N == 1: calc_AutoCorr = False	# Auto-correlation between diff. diffraction Patterns
-		else:  calc_AutoCorr = True 		# only for N > 1 (ense no pattern to compare to)
+		if N == 1: calc_AutoCorr = False	## Auto-correlation between diff. diffraction Patterns ##
+		else:  calc_AutoCorr = True 		## only for N > 1 (ense no pattern to compare to) ##
 
-		calc_CrossCorr = False #False 		# Calculate the Cross-Correlation (? HOW chooose g?? )
+		calc_CrossCorr = False #False 		## Calculate the Cross-Correlation (? HOW chooose g?? ) ##
+
+
+		# ---- Set Working parameter 'img' to selected data: ----
+		if run_with_MASK: img = Ip_w_mb #or amplitudes:  np.abs(Ap_w_mb) ## All Patterns with Better-Mask-Assembled ##  ######### INT.PATT. OR AMPL.PATT
+		else: img = intensity_pattern 	## All Patterns saved, give shorter name for simplicity ##
+		pttrn = "Int"
+		if Ampl_image: 
+			img = abs(Ap_w_mb) ## The complex images in Amplitude Patterns instead of Intensity Patterns ##
+			pttrn = "Ampl"
+		if add_noise:
+			img = Ip_w_mb_w_Ns
+			pttrn = "Int-add-noise-%iprc" %(nlevel*100)
+
 
 		# ---- Generate a Storage File for Data/Parameters: ----
-		#data_hdf = h5py.File( prefix + 'file_c.hdf5', 'a')	# a : read/write/create, r+ : write/must-exist
-		#data_hdf = h5py.File( out_fname + '_file_c.hdf5', 'a') 	# Img Without MASK
-		#data_hdf = h5py.File( out_fname + '_file_c[w-MASK].hdf5', 'w')	# w: Write/create
-		data_hdf = h5py.File( out_fname + '_file_c[w-MASK].hdf5', 'a')	# a: append
-		#data_hdf = file_hdf.create_group("LOKI")
+		if calc_RadProfile or save_polar_param:
+			#data_hdf = h5py.File( prefix + 'file_c.hdf5', 'a')	# a : read/write/create, r+ : write/must-exist
+			#data_hdf = h5py.File( out_fname + '_file_c[w-MASK].hdf5', 'w')	# w: Write/create
+			data_hdf = h5py.File( out_fname + '_file_c[w-MASK]_%s.hdf5' %(pttrn), 'a')	# a: append
+			#data_hdf = file_hdf.create_group("LOKI")
 
-		if run_with_MASK: img = Ip_w_mb #or amplitudes: Ap_w_mb # All Patterns with Better-Mask-Assembled
-		else: img = intensity_pattern 	# All Patterns saved, give shorter name for simplicity
-
-		# ---- Centre Coordiates Retrieved Directly from File (can also be loaded globally with mask and gain): ----
-		## with the dimensions fs = fast-scan {x}, ss = slow-scan {y} ##
-		#cntr = np.load("%s/../centers/better_cent_lt14.npy" %str(this_dir))	# from exp-file run 84-119
-		#gn = np.load("%s/../gain/.npy" %str(this_dir))	# from exp-file run 84-119
-		#print "\n central coordinates : ", cntr, " and as int: ", cntr.astype(int)
-		# 	= central coordinates :  [881.43426    863.07597243]  and as int:  [881 863]
-
+		
 
 		# ---- Calculate the Radial Profile for the 1st Diffraction Pattern: ----
 		if calc_RadProfile:
@@ -558,6 +701,12 @@ if XCCA_Loki:
 			if 'radial_profiles' not in data_hdf.keys(): data_hdf.create_dataset( 'radial_profiles', data = rad_pros)
 			if 'qs_for_profile' not in data_hdf.keys(): data_hdf.create_dataset( 'qs_for_profile', data = qs)
 			del r_p 	# clear up memory
+
+			# ---- If NOT saving the polar paramters, save only the Radial Profiles ---- #
+			if not save_polar_param:
+				data_hdf.close()
+				print "\n File Closed! \n"
+
 			t = time.time()-t_RF1
 			t_m =int(t)/60
 			t_s=t-t_m*60
@@ -613,7 +762,7 @@ if XCCA_Loki:
 			pypl.subplots_adjust(wspace=0.4, hspace=0.4, left=0.07, right=0.99)
 			pypl.tight_layout() 
 			#plt.show()
-			fig_name = "Figure_1_Radial-Profile-SUBPLOT_(from-center)_w_Mask.%s" %(frmt)
+			fig_name = "Figure_1_Radial-Profile-SUBPLOT_(from-center)_w_Mask_%s.%s" %(pttrn,frmt)
 			pypl.savefig( out_fname + fig_name)
 			print "\n Subplot saved as %s " %fig_name
 			del fig_name
@@ -641,24 +790,16 @@ if XCCA_Loki:
 			plt.xlabel("r (pixels)", fontsize=20)
 			plt.gca().tick_params(labelsize=15, length=9)
 			#plt.show()
-			fig_name = "Figure_2_Radial-Profile-SUBPLOT_(from-edge)_w_Mask.%s" %(frmt)
+			fig_name = "Figure_2_Radial-Profile-SUBPLOT_(from-edge)_w_Mask_%s.%s" %(pttrn,frmt)
 			#pypl.savefig( out_fname + fig_name)
 			#print "\n Subplot saved as %s " %fig_name
 			del fig_name
-
-			#data_hdf.close()
-			#print "\n File Closed! \n"
 
 		#######################################################################################
 		#data_hdf = h5py.File( out_fname + '_file_c[w-MASK].hdf5', 'a')
 
 		# ---- Set Radial Parameters for Interpolation in Polar-Conversion : ----
 		#### Crystal Dim from CsCL-PDB-files ~33x33x36 Angstrom => 0.03x0.03x0.028 [1/A]
-		#q_min, q_max = 2.64, 2.71 		# [1/A]  //test values from Sacla-tutorial for Gold nanoparticle
-		#nphi =  int( 2 * pi * q_max ) 	# //test values from Sacla-tutorial for Gold nanoparticle
-		# Radial Plot l440-455: Q[1/A]: 6.8046(6.80456)-6.8056; r[pxls]: 863-1160; with pxls on diagonal
-		#if !calc_RadProfile & ('radial_profile' in data_hdf.keys()): rad_pro = data_hdf['radial_profil']
-		#else: 
 		if not calc_RadProfile and not run_with_MASK: 
 			assert('radial_profile' in data_hdf.keys()),("No Radial Profile saved!!")
 			rad_pro = data_hdf['radial_profile']
@@ -673,8 +814,6 @@ if XCCA_Loki:
 			qmin_pix = 900-rad_cent #890-rad_cent#870-rad_cent #864-rad_cent #5 #invang2pix ( q_min ), q from origin{center-pixel}
 			qmax_pix = 1135-rad_cent#1145-rad_cent #1159-rad_cent #700#invang2pix ( q_max ) # 900 : IndexError: index 3028543 is out of bounds for axis 1 with size 3027596 for polar_mask = Interp.nearest(m_b, dtype=bool).round()
 		else: 
-			#### GDrive/.../Exp_CXI-Martin/scripts/corpairs.py: min = 54; rmax = 1130 ####
-			rmin, rmax = 300, 500 ## interesting peaks in Exp. at  200-600 alt 300-500## 
 			qmin_pix = rmin#60#50# 	## q from origin{center-pixel} estimated from radial Profile #
 			qmax_pix = rmax# 250#150 #250
 
@@ -728,8 +867,10 @@ if XCCA_Loki:
 		#print " Dim of the Polar Images: ", polar_imgs.shape # = (5, 90, 3)
 
 		# ---- Normalize - with function: ----
-		polar_imgs_norm =norm_polar_img(polar_imgs, mask_val=0) # Function
-		
+		#polar_imgs_norm =norm_polar_img(polar_imgs, mask_val=0) # Function
+		## alt try: polar_imgs_norm = norm_data(polar_imgs)
+		polar_imgs_norm = polar_imgs ## skip normalisation of simulated data ##
+
 		# --- LookUp-Map : ----
 		# numb_map = {}
 		# for indx, N in Range (N):		#enumerate( exposure_tags)
@@ -744,10 +885,10 @@ if XCCA_Loki:
 			if 'num_phi' not in data_hdf.keys():	data_hdf.create_dataset( 'num_phi', data = nphi, dtype='i1') #INT, dtype='i1', 'i8'f16'
 			if 'q_mapping' not in data_hdf.keys():	data_hdf.create_dataset( 'q_mapping', data = q_map)
 			del Interp, cntr, radial_dim # Free up memory
-
-		# ---- Save by closing file: ----
-		data_hdf.close()
-		print "\n File Closed! \n"
+			
+			# ---- Save by closing file: ----
+			data_hdf.close()
+			print "\n File Closed! \n"
 
 
 		######################  PLOT 1st Pattern in Polar Coordinates (Norm)[fig.3]{/SACLA tutorial}: ################### 
@@ -759,6 +900,7 @@ if XCCA_Loki:
 			#polar_im =polar_imgs[0]
 			plt.figure(3, figsize=(15,6))
 			#imshow(polar_im, vmax = 1000, aspect='auto')
+			print polar_im.shape
 			imshow(polar_im, aspect='auto', vmax = polar_im.max())#, cmap='jet')	#default cmap = 'viridis', mtlab =jet
 			cb = plt.colorbar()#polar_im)#, ax=ax, shrink=cb_shrink, pad= cb_padd)#, label=r'$\log_{10}\ $')
 			cb.set_label(label=' --- [A.U]', weight='bold', size=12)
@@ -783,11 +925,11 @@ if XCCA_Loki:
 			xlabel(r'$\phi$', fontsize = 18)
 			ylabel(r'$q \, [\AA^{-1}]$', fontsize =18)
 			title('Polar Image of Pattern nr. %i (normalised)' %(nmbr+1),  fontsize=14)
-			show()
+			#show()
 
-			fig_name = "Figure_3_polar_image_(qx-%i_qi-%i)_w_Mask.%s" %(qmax_pix,qmin_pix,frmt)
-			#pypl.savefig( out_fname + fig_name)
-			#print "\n Plot saved as %s " %fig_name
+			fig_name = "Figure_3_polar_image_(qx-%i_qi-%i)_w_Mask_%s.%s" %(qmax_pix,qmin_pix,pttrn,frmt)
+			pypl.savefig( out_fname + fig_name)
+			print "\n Plot saved as %s " %fig_name
 			del fig_name
 		################################################################################ 
 
@@ -813,11 +955,6 @@ if XCCA_Loki:
 			#print "exposure diff vector's shape", exposure_diffs_cart.shape, ' in polar ", exposure_diffs_pol.shape
 
 			# ---- Autocorrelation of each Pair: ----
-			#DC_crt = RingData.DiffCorr( exposure_diffs_cart)
-			#DC_plr = RingData.DiffCorr( exposure_diffs_pol )
-			#cor_crt = DC_crt.autocorr()		#Return the Difference Autocorrelation of Carteesian space
-			#cor_plr = DC_plr.autocorr()		#Return the Difference Autocorrelation of the Polar imgs
-			#cor_mean = [cor_crt.mean(0), cor_plr.mean(0)]
 			acorr = [RingData.DiffCorr( exposure_diffs_cart).autocorr(), 
 							RingData.DiffCorr( exposure_diffs_pol ).autocorr()]
 			cor_mean = [RingData.DiffCorr( exposure_diffs_cart).autocorr().mean(0), 
@@ -866,7 +1003,7 @@ if XCCA_Loki:
 				pypl.xlabel(r'$\phi$', fontsize = 18)
 				pypl.ylabel(r'$q \, [\AA^{-1}]$', fontsize =18)
 
-			pypl.title("Auto-Correlation [%s]" %cord_sys,  fontsize=16)
+			pypl.title("Auto-Correlation [%s] of %i patterns" %(cord_sys,N),  fontsize=16)
 			############### [fig.4b]  Plot Sigma (Normed Auto-Correlation with +-2 std as limits)  ##############
 			subplt_ave_corrs = True#False 		#### Plot the 2nd plot {adapted from in // GDrive/.../scripts/ave_corrs & 'plot_a_corr.py'} ####
 			if subplt_ave_corrs:
@@ -922,7 +1059,7 @@ if XCCA_Loki:
 			pypl.subplots_adjust(wspace=0.2, hspace=0.2, left=0.07, right=0.99)
 			#pypl.tight_layout()  ## overrule adjustments ##
 			#show() 
-			fig_name = "Figure_4_Diff-Auto-Corr_SUBPLOT_(qx-%i_qi-%i_nphi-%i)_w_Mask_%s.%s" %(qmax_pix,qmin_pix, nphi,cord_sys,frmt)
+			fig_name = "Figure_4_Diff-Auto-Corr_SUBPLOT_(qx-%i_qi-%i_nphi-%i)_w_Mask_%s_%s.%s" %(qmax_pix,qmin_pix, nphi,cord_sys,pttrn,frmt)
 			pypl.savefig( out_fname + fig_name)
 			print "\n Sub-plot saved as %s " %fig_name
 		################################################################################ 
@@ -998,7 +1135,7 @@ if XCCA_Loki:
 				show() 
 				#pypl.savefig( out_fname +'Cross-correlation_0.%s' %(frmt))
 				#print "Sub-plot saved as %s " %"Cross-correlation_0"   
-				fig_name = "Figure_5_Cross-correlation_g-%i_(qx-%i_qi-%i)_w_Mask.%s" %(qindex_to_plt,qmax_pix,qmin_pix,frmt)
+				fig_name = "Figure_5_Cross-correlation_g-%i_(qx-%i_qi-%i)_w_Mask_%s.%s" %(qindex_to_plt,qmax_pix,qmin_pix,pttrn, frmt)
 				#pypl.savefig( out_fname + fig_name)
 				#print "Plot saved as %s " %fig_name
 				del fig_name
@@ -1081,7 +1218,7 @@ if XCCA_Loki:
 				ylabel(r"Cross-Correlation [---]",  fontsize =16)
 				#legend()
 				show() 
-				fig_name = "Figure_6_Cross-correlation_(qx-%i_qi-%i)_w_Mask.%s" %(qmax_pix,qmin_pix,frmt)
+				fig_name = "Figure_6_Cross-correlation_(qx-%i_qi-%i)_w_Mask_%s.%s" %(qmax_pix,qmin_pix,pttrn,frmt)
 				#pypl.savefig( out_fname + fig_name)
 				#print "Plot saved as %s " %fig_name
 				del fig_name
@@ -1102,19 +1239,18 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 	from AnalysisTools import correlation  ## e.g.from loki import RingData; from loki.RingData import RadialProfile, InterpSimple
 	print "\n Data Analysis with cxiLT14py.\n"
 
-	images = Ip_w_mb # or amplitudes: Ap_w_mb ## All Patterns with Better-Mask-Assembled,
-	
 	###################### Choose Caculations: ###################
-	data_normalize = False 	## Normalise data ##
+	#Ampl_image = False		## The complex images in Amplitude Patterns instead of Intensity Patterns ##
+	data_normalize = False 	## Normalise data (not necessary for sim)##
 	diffCor = False 		## Choose if to calculate for Diff of current with random frame ##
-	randomXcorr = False  	##Calculate the correlation between current frame and a random frame. ##
+	randomXcorr = False  	## Calculate the correlation between current frame and a random frame. ##
 	save_polar_param = False ## Save the Calculated data ##
 
 	###################### Choose PLOTs: ###################
 	plot_polar_mask = True#False#True
-	plot_acorr_mask = True#False#True
-	plot_acorr_raw = True 		## Plot directly after calculation ##
-	plot_acorr_proc = True 		## Plot after corrections ##
+	plot_acorr_mask = False#True 		## Plot the Angular correlation of the mask ##
+	plot_acorr_raw = True#False#True 		## Plot directly after calculation ##
+	plot_acorr_proc = True 				## Plot after corrections ##
 
 	# ---- Some Useful Functions from: cxiLT14py/AnalysisTools/radial_profile.py -----
 	# --------------------------------------
@@ -1141,15 +1277,24 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 	# --------------------------------------    
 
 	# ---- Generate a Storage File's Prefix: ----
-	prefix = '%s_%s_store-param' %(name,pdb)
+	prefix = '%s_%s_' %(name,pdb)
 	LT14_folder = outdir + '/%s_%s_%s_with_cxiLT14/' %(name,run,pdb)
 	if not os.path.exists(LT14_folder):
 		os.makedirs(LT14_folder)
 	out_fname = os.path.join( LT14_folder, prefix) 	# with directory
 	if save_polar_param:
-		data_hdf = h5py.File( out_fname + 'parameters-ACC.hdf5', 'w')	# a (append): read/write/create, r+ : write/must-exist
+		data_hdf = h5py.File( out_fname + 'parameters-ACC_%s.hdf5' %(pttrn), 'w')	# a (append): read/write/create, r+ : write/must-exist
 		#data_hdf = file_hdf.create_group("cxiLT14py")	
 
+
+	images = Ip_w_mb # or amplitudes: abs(Ap_w_mb) ## All Patterns with Better-Mask-Assembled,
+	pttrn = "Int"
+	if Ampl_image: 
+		images = abs(Ap_w_mb) ## The complex images in Amplitude Patterns instead of Intensity Patterns ##
+		pttrn = "Ampl"
+	if add_noise:
+		images = Ip_w_mb_w_Ns
+		pttrn = "Int-add-noise-%iprc" %(nlevel*100)
 
 	# ----- Angular Correlation Structure: -----
 	#ac = anto.correlation.angular_correlation() 	##if #import AnalysisTools as anto 
@@ -1158,14 +1303,13 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 	# ---- Some Parameters for Polar Plot: ----
 	## polarRange", nargs=4, help="pixel range to evaluate polar plots of assembled images ", type=float ##
 	## pix2invang = lambda qpix : sin(arctan(qpix*(ps*1E-6)/dtc_dist )/2)*4*pi/wl_A
-	if cntr[1]> cntr[0] :	theta_half = np.arctan((cntr[0])*(ps*1E-6)/dtc_dist) 	# use smaller center value => less data outside radius
-	else :	theta_half = np.arctan((cntr[1])*(ps*1E-6)/dtc_dist) 
-	#polarRange = [60, 250, 0, theta_half]; r
-	## 
+	#if cntr[1]> cntr[0] :	theta_half = np.arctan((cntr[0])*(ps*1E-6)/dtc_dist) 	# use smaller center value => less data outside radius
+	#else :	theta_half = np.arctan((cntr[1])*(ps*1E-6)/dtc_dist) 
+	 
 	#### GDrive/.../Exp_CXI-Martin/scripts/corpairs.py: min = 54; rmax = 1130 ####
 	#polarRange = [60, 250, 0, (2)*np.pi] # 0, (2)*np.pi]; np.pi, (2)*np.pi]; (1/2.0)*np.pi, (2)*np.pi];  np.pi, (4)*np.pi; np.pi, (3)*np.pi]
 	#polarRange = [54, 1130, 0, (2)*np.pi] ## from  GDrive/.../Exp_CXI-Martin/scripts/corpairs.py: ##
-	polarRange = [60, 1130, 0, (2)*np.pi] ## 60 from radial_Profile in LOKI ###
+	polarRange = [rmin, rmax , 0, (2)*np.pi] ## rmin & rmax set globally [pixels]
 	## thmax=polarRange[3] with thmin=0:yields 0s polar-mask for theta_half, pi; yields 1s polar-mask for pi2/3, pi3/4
 	## atp.parser.add_argument( "--nq", help="number of radial (q) polar bins ", type=int 	##
 	## atp.parser.add_argument( "--nth", help5="number of angular polar bins ", type=int 	##
@@ -1218,8 +1362,8 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 		pypl.title("'pplot_maskones'",  fontsize=14), pypl.colorbar() 
 		pypl.xticks(nphi_bins, nphi_label), pypl.yticks(q_bins, q_label)
 		pypl.xlabel(r'$\phi$', fontsize = 18), pypl.ylabel(r'q  [pixels]', fontsize =18)#(r'$q \, [\AA^{-1}]$', fontsize =18)
-		
-		fig_name = "Figure_1_SUBPLOT_Polar_MASk_(qx-%i_qi-%i)_%iphibins_w_Mask_.%s" %(qmax,qmin,nth,frmt)
+		pypl.suptitle("Polar MAsks", fontsize=16)
+		fig_name = "Figure_1_SUBPLOT_Polar_MASk_(qx-%i_qi-%i)_%iphibins_w_Mask_%s.%s" %(qmax,qmin,nth,pttrn,frmt)
 		#pypl.show()
 		pypl.savefig( out_fname + fig_name)
 		print "Plot saved as %s " %fig_name
@@ -1234,7 +1378,7 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 		pypl.xticks(nphi_bins, nphi_label), pypl.yticks(q_bins, q_label)
 		pypl.xlabel(r'$\phi$', fontsize = 18), pypl.ylabel(r'q  [pixels]', fontsize =18)#(r'$q \, [\AA^{-1}]$', fontsize =18)
 		
-		fig_name = "Figure_2_MASK-ACC_(qx-%i_qi-%i)_%iphibins_w_Mask.%s" %(qmax,qmin,nth,frmt)
+		fig_name = "Figure_2_MASK-ACC_(qx-%i_qi-%i)_%iphibins_w_Mask_%s.%s" %(qmax,qmin,nth,pttrn,frmt)
 		#pypl.show()
 		pypl.savefig( out_fname + fig_name)
 		print "\ Plot saved as %s " %fig_name
@@ -1335,7 +1479,7 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 	########## PLOT ACC [fig.3]: ################################
 	from matplotlib import ticker
 	if plot_acorr_raw:	# ifft (conjunate) => Ned ABS-value
-		pypl.figure(3, figsize=(15,8))
+		pypl.figure(3, figsize=(15,10))
 		f = corrqqsum.shape[2]+1		# Number of Subplots
 		plt_name = ["Even Frame", "Odd Frame", "Total"]
 		if corrqqsum[:,:,0].max() > corrqqsum[:,:,1].max():	cb_max =corrqqsum[:,:,0].max()
@@ -1356,10 +1500,11 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 			cb=pypl.colorbar(im, orientation="horizontal") #label=r'...')
 			cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
 			cb.update_ticks()
+		pypl.subplots_adjust(wspace=0.4, hspace=0.2, left=0.07, right=0.99)
 		#pypl.xticks(nphi_bins, nphi_label), pypl.yticks(q_bins, q_label)
 		#pypl.xlabel(r'$\phi$', fontsize = 18), pypl.ylabel(r'q  [pixels]', fontsize =18)#(r'$q \, [\AA^{-1}]$', fontsize =18)
 		#pypl.show()
-		fig_name = "Figure_3_SUBPLOT_ACC_(qx-%i_qi-%i)_%iphibins_w_Mask_.%s" %(qmax,qmin,nth,frmt)
+		fig_name = "Figure_3_SUBPLOT_ACC_(qx-%i_qi-%i)_%iphibins_w_Mask_%s.%s" %(qmax,qmin,nth,pttrn,frmt)
 		pypl.savefig( out_fname + fig_name)
 		print "\n Plot saved as %s " %fig_name
 		del fig_name
@@ -1392,6 +1537,7 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 
 	########## PLOT ACC [fig.4]: ################################
 	if plot_acorr_proc:	# ifft (conjunate) => Ned ABS-value
+		plt_log = True #False  ## Plot in log-10 scale ##
 		pypl.figure(4, figsize=(15,8))
 		f = corrqqsum.shape[2]+1		# Number of Subplots
 		plt_name = ["Even Frame", "Odd Frame", "Total"]
@@ -1400,20 +1546,26 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 		for i in range(f):
 			pypl.subplot(1,f, i+1)
 			ax=pypl.gca()
-			if i==corrqqsum.shape[2]: im=ax.imshow(np.sum(corrqqsum,2), aspect='auto', vmax = cb_max) # or norm : Normalize ??
-			else:	im=ax.imshow(corrqqsum[:,:,i], aspect='auto')#, vmax = cb_max) #		## if storing np.abs(Complex128)**2  ##
-					#im=ax.imshow(abs(corrqqsum[:,:,i]), aspect='auto', vmax = cb_max) #	## if storing Complex Matrices ##
+			if not plt_log: 	## Normal Plot ##
+				if i==corrqqsum.shape[2]: im=ax.imshow(np.sum(corrqqsum,2), aspect='auto', vmax = cb_max) # or norm : Normalize ??
+				else:	im=ax.imshow(corrqqsum[:,:,i], aspect='auto')#, vmax = cb_max) #		## if storing np.abs(Complex128)**2  ##
+						#im=ax.imshow(abs(corrqqsum[:,:,i]), aspect='auto', vmax = cb_max) #	## if storing Complex Matrices ##
+			else:		## Plot with log-10 ##
+				if i==corrqqsum.shape[2]: im=ax.imshow(np.log10(np.sum(corrqqsum,2)), aspect='auto', vmax = cb_max) # or norm : Normalize ??
+				else:	im=ax.imshow(np.log10(corrqqsum[:,:,i]), aspect='auto')#, vmax = cb_max) #		## if storing np.abs(Complex128)**2  ##
+					
 			ax.set_title("Polar Angular Correlation: %s" %plt_name[i],  fontsize=14), pypl.colorbar(im, orientation="horizontal") #label=r'...')
 		#pypl.xticks(nphi_bins, nphi_label), pypl.yticks(q_bins, q_label)
 		#pypl.xlabel(r'$\phi$', fontsize = 18), pypl.ylabel(r'q  [pixels]', fontsize =18)#(r'$q \, [\AA^{-1}]$', fontsize =18)
 		#pypl.show()
-		fig_name = "Figure_4_SUBPLOT_ACC-corrected_(qx-%i_qi-%i)_%iphibins_w_Mask.%s" %(qmax,qmin,nth,frmt)
+		if not plt_log: fig_name = "Figure_4_SUBPLOT_ACC-corrected_(qx-%i_qi-%i)_%iphibins_w_Mask_%s.%s" %(qmax,qmin,nth,pttrn,frmt)
+		else: fig_name = "Figure_4_SUBPLOT_ACC-corrected_(qx-%i_qi-%i)_%iphibins_w_Mask_%s_log10.%s" %(qmax,qmin,nth,pttrn,frmt)
 		pypl.savefig( out_fname + fig_name)
 		print "\n Plot saved as %s " %fig_name
 		del fig_name
 
 	######################################################################
-### GDrive/.../Exp_CXI-Martin/scripts/plot_a_corr.py:
+### GDrive/.../Exp_CXI-Martin/scripts/plot_a_corr.py: #### plot in carteesian coordinates ####
 #def get_cor(fname, detdist, Q=None, R=None, bins=None, wave=2.0695, plot=True):
     
 #    data = np.load(fname)
@@ -1452,7 +1604,3 @@ if XCCA_cxiLT14py:		## from AngularCorrelation.py {- simple script to calculate 
 #        plt.gca().tick_params(labelsize=15, length=9)
 #        plt.show()
 ## ##
-## ## ### GDrive/.../Exp_CXI-Martin/scripts/corpairs.py:
-#rmin = 54; rmax = 1130 => Must re run radial Profile in LOKI + Auto Correlations
-#chunksize = 50
-#min_residual = 10
