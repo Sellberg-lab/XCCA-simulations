@@ -15,8 +15,11 @@ from os import system
 script = 'test_CsCl_84-X_v6.py' #'test_CsCl_84-119_v6.py'
 params = {}
 
+#####################################################
+########## Paramters for Script: ####################
+#####################################################
+
 ## loop through diff parame? ##
-#run_name = ["84-119", "84-150"]
 #pdb_files = ['4M0', '6M90']
 ## nestled loop for both noise types?? ##
 #noise = ['poisson', None]
@@ -24,17 +27,34 @@ params = {}
 # if params["-dn"] == 'None: params["-f"] = 'test_noisefree'
 
 
+## PDB-file simulated on: ##
+params["-pdb"] = '4M0_ed'#'4M0_ed' ## simulated '4M0_ed'
+#params["-pdb"] = '6M90_ed' #'6M90_ed'#'6M45_ed'
+
+## Nmber of Patterns Simulated (if in CXI-file-name) :##
+params["-n"] = '1' #Test-run with '1', '5', '100'
+
+## Output PATH (not required, Default= ./simulation_result)##
+#params["-o"] = None
 
 
-## Paramters for Script: ##
-#params["-r"] = "84-119" ## also 84-105 (with 6.34M/dm3)
-#params["-r"] = "119" ## also 105 (with 6.34M/dm3)
-params["-f"] = 'Pnoise_BeamNarrInt' # 'test_Pnoise' with Narrower Beam and higher Intensity
-params["-pdb"] = '6M45_ed'#'4M0_ed' ## simulated '4M0_ed', 6M45_ed,
-params["-n"] = '5'
-#params["-o"] = None 	## Output Path, not required ##
+## if no NOISE : ##
+#params["-f"] = 'noisefree_Beam-NarrInt' ##with Narrower Beam and higher Intensity
+#params["-f"] = 'Fnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity
+
+
+## if Poission NOISE : ##
+#params["-f"] =  'test_Pnoise' 
+params["-f"] = 'Pnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity
 params["-dn"] = 'poisson'
+
+## if Gaussian NOISE : ##
+#params["-f"] = 'Gnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity
+#params["-dn"] = 'normal'
 #params["-dns"] = 0.005000
+
+#####################################################
+#####################################################
 
 ## Generate the Command Line String ##
 #command = "ipython " + script + " " ## ipython steals arguments
