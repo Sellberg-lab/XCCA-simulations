@@ -1,25 +1,34 @@
 #!/bin/bash
 
-## Number of 'runs' or 'shots' to generate ##
-npatterns=100 ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
+## Number of 'runs' or 'shots' to generate ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
+#npatterns=1
+npatterns=100
 
-## Simulation Parameters ## '6M90_ed')
+## Simulation Parameters ## '4M0_ed'-'4M90_ed' and '6M0_ed'-'6M90_ed'
+
 pdbf=('4M0_ed') 
-
+## PDB-files '4M0_ed'-'4M90_ed' and '6M0_ed'-'6M90_ed' : ##
 #pdf=()
 #for (( i=0; i<=90; i++)); do  ##arr=(), arr+=(4)	#Append value(s), or:Unix=("${Unix[@]}" "AIX" "HP-UX")
 ##	pdf+=('4M'"$i"'_ed') 		## eval ?  ##2nd for-loop for 6M indx 0-90 for 4Mol; indx 91-182 for 6Mol
 #	pdf+=('4M'"$i"'_ed' '6M'"$i"'_ed') 
 #done	
-noise=(None 'poisson')
+
+## Noise (if None then filename '..__.')##
+noise=('None' 'poisson')
 name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
 #name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None 
 
-## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl :##
+## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
 CURRDIR=`pwd` 
 LOGGDIR="$CURRDIR/Loggs"
-## Store large CXI-files in scratch-folder (OBS! ): ##
-STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files"
+#BASEDIR= "/home/cldah/source/XCCA-simulations/CsCl"
+## Store large CXI-files in scratch-folder (realtive or direct NOT WORKIN ): ##
+#STOREDIR="$CURRDIR/../../../cldah-scratch/condor_cxi_files"
+#STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files" ## WORKS ##
+STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns"
+#STOREDIR="$BASEDIR/cxi_files" ## PERMISSION DENIED ! ##
+#STOREDIR="$CURRDIR/cxi_files" ## WORKS ##
 #LINKNAME="store_on_scratch"
 if test ! -e $LOGGDIR; then
 	mkdir $LOGGDIR
@@ -29,6 +38,8 @@ if test ! -e $STOREDIR; then
 	mkdir $STOREDIR
 	echo "Created "$STOREDIR
 fi
+echo "STOREDIR-path for cxi-files: "$STOREDIR
+#echo "inside STOREDIR-path: "$STOREDIR/
 
 #nalloc=`squeue -u cldah | wc -l`
 #if [ $nalloc -lt 2 ]; then ## depend on local terminal active ##
@@ -37,39 +48,43 @@ fi
 #fi
 # echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
-## Run for the different molecules and noise-environments and generatae Logg-files##
+## Run for the different molecules and noise-environments and generatae Logg-files ##
 for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
-	#for (( i=0; i<=1; i++)); do  ##  ${#a[@]} ##
-	for (( i=0; i<=${#name[@]}; i++)); do  ##  or ${#noise[@]} == ${#name[@]} length should be eq ##
+	#for (( i=0; i<=1; i++)); do  ##  or i<${#noise[@]} == i<${#name[@]} length should be eq ##
+	for (( i=0; i<${#name[@]}; i++)); do 
 		echo "Running Simulations of $conc with ${noise[i]}-noise..."
 		echo '#!/bin/bash'> $LOGGDIR/CsCl_simulate.sh
 		echo '' >> $LOGGDIR/CsCl_simulate.sh
-		echo '#SBATCH -o '$LOGGDIR/'CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.out' >> $LOGGDIR/CsCl_simulate.sh
-		#echo '#SBATCH -o '"$LOGGDIR/"'CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.out' >> $LOGGDIR/CsCl_simulate.sh
-		echo '#SBATCH -e $'LOGGDIR/'CsCl_simulate_'"${pdbf[i]}"'_'"${noise[i]}"'.err' >> $LOGGDIR/CsCl_simulate.sh
+		echo '#SBATCH -o '$LOGGDIR/'CsCl_simulate_'"$conc"'_'"${name[i]}"'.out' >> $LOGGDIR/CsCl_simulate.sh
+		echo '#SBATCH -e '$LOGGDIR/'CsCl_simulate_'"$conc"'_'"${name[i]}"'.err' >> $LOGGDIR/CsCl_simulate.sh
 		echo '' >> $LOGGDIR/CsCl_simulate.sh
-		## Request 2 GPUs per node for CUDA :##
-		echo '#SBACH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  
 		echo 'module load cuda' >> $LOGGDIR/CsCl_simulate.sh
+                ## Requegresst 2 GPUs per node for CUDA :##		
+		echo '#SBATCH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  
+		
 		echo ''  >> $LOGGDIR/CsCl_simulate.sh
 		echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
 		echo 'echo "Node: $HOST" ' >> $LOGGDIR/CsCl_simulate.sh
-		#if [ $i -eq 1 ]; then  ## [1]=None
-		if[ $i -eq 0 ]; then 
-			echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py' '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
-		else	
-			echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
-		fi
-		#module load cuda
+		#if [ $i -eq 1 ]; then  ## [1]=None ##
+		#if [ $i -eq 0 ]; then  ## fixed so Pyth-cndr changes str("None")-input to None-command for CONDOR## 
+		#	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py' '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
+		#else	
+		#	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
+		#fi
+		echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh		
 		#SBACH --ntask=2  ## Ask for 2 Tasks(processes) ##
 		#SBACH -N2  ## Ask for 2 Nodes ##
 		#SBACH --cpus-per-task=2 ## || SBACH --gres=gpu:2 ## Choose what resources each Task will use ##
 		#srun --gres=gpu:2 -n1 --pty  $SHELL -i ## Activate GPUs ##
+
+		## try Debbigging since Python can not find dir ##
+		#sbatch -p debug $LOGGDIR/CsCl_simulate.sh  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
 		sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ##
-		##sbatch -p scavenger $LOGGDIR/CsCl_simulate.sh ## scavenger max  30 days ##
-		##sbatch -p highmem $LOGGDIR/CsCl_simulate.sh ## highmem       up   infinite      2  ##
+		#sbatch -p scavenger $LOGGDIR/CsCl_simulate.sh ## scavenger max  30 days ##
+		#sbatch -p highmem $LOGGDIR/CsCl_simulate.sh ## highmem up infinite ##
 		##local term dep## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
 	done
 done
 squeue -u cldah
+#cp /home/cldah/source/XCCA-simulations/CsCl/simulation_results/ $STOREDIR/.
