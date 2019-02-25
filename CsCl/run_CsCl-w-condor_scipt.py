@@ -39,14 +39,15 @@ params["-n"] = '1' #Test-run with '1', '5', '100'
 
 
 ## if no NOISE : ##
+params["-f"] = 'test_Fnoise-1-None'
 #params["-f"] = 'noisefree_Beam-NarrInt' ##with Narrower Beam and higher Intensity
 #params["-f"] = 'Fnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity
-
+params["-dn"] = "None"
 
 ## if Poission NOISE : ##
 #params["-f"] =  'test_Pnoise' 
-params["-f"] = 'Pnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity
-params["-dn"] = 'poisson'
+#params["-f"] = 'Pnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity
+#params["-dn"] = 'poisson'
 
 ## if Gaussian NOISE : ##
 #params["-f"] = 'Gnoise_Beam-NarrInt' ##with Narrower Beam and higher Intensity

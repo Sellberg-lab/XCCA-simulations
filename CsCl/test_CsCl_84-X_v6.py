@@ -29,11 +29,11 @@ this_dir = os.path.dirname(os.path.realpath(__file__)) # from Condor/example.py,
 
 # ----- Import plotting form matlab but include Exceptions = Errors : -----
 try:
-    import matplotlib.pyplot as pypl
-    plotting = True
+	import matplotlib.pyplot as pypl
+	plotting = True
 except Exception as e:
-    print(str(e))
-    plotting = False
+	print(str(e))
+	plotting = False
 
 
 # ----- Import Logging for Condor for debugging code: -----
@@ -91,10 +91,11 @@ N = args.number_of_shots ## number of diffraction patterns to simulate ##
 ps = 110        # [um] pixel size in um= 1E-6m
 dtc_dist = 0.15 # [m] Detector Distance from Sample
 noisy = args.dtct_noise     # Noise type: {None, "poisson", "normal"=gaussian, "normal_poisson" = gaussian and poisson}
+if noisy == "None": noisy = None
 # # (if 'normal'||'normal_poisson' additional argument noise_spread is required [photons])
 n_spread = args.nose_spread #None
 #if noisy=="normal" or noisy=="normal_poisson": n_spread = 0.005000  # online GUI start at 0,5; tried: 0,000005
-mask_file = "./masks/better_mask-assembled.npy"	# Mask file from Experiment [CXI-Martin run 18-119] size (1738x1742)
+mask_file = "./masks/better_mask-assembled.npy" # Mask file from Experiment [CXI-Martin run 18-119] size (1738x1742)
 #mask_file = "better_mask-assembled.npy" # Mask file from Experiment [CXI-Martin run 18-119] (1738x1742)
 mask_array = numpy.load(mask_file)
 #det = condor.Detector(distance=0.15, pixel_size=ps*1E-6, nx=pxls-x_gap, ny=pxls, x_gap_size_in_pixel = x_gap, hole_diameter_in_pixel=h_dia, noise = noisy, noise_spread = n_spread)
@@ -106,21 +107,21 @@ t_det_i = time.time()
 #   (instance values borrowed from fig6 in Condor-article[Hatanke, 2016 IUCr Condor])
 ratio = 1     # ratio of Molecule/Salt : Water; in this case the PDB-file already includes the water
 if args.pdb_path is None: 
-    pdb= args.pdb_name # "4M0_ed"      # 92 structure-files for each concentration.(XXX_ed 78th column had to be added)
-    pdb_file ="./CsCl-PDB_ed/%s" %(pdb)    # the PDB-id name, "./CsCl-PDB/name"
+	pdb= args.pdb_name # "4M0_ed"      # 92 structure-files for each concentration.(XXX_ed 78th column had to be added)
+	pdb_file ="./CsCl-PDB_ed/%s" %(pdb)    # the PDB-id name, "./CsCl-PDB/name"
 else: 
-    pdb_file = args.pdb_path    # the PDB-id name including the path, "./CsCl-PDB/4M0"
-    parts = args.pdb_path.split('/') 
-    pdb =  parts[-1]
+	pdb_file = args.pdb_path    # the PDB-id name including the path, "./CsCl-PDB/4M0"
+	parts = args.pdb_path.split('/') 
+	pdb =  parts[-1]
 cncntr = pdb.split('M')[0] ## Find which concentration was used and match to Experiment name ##
 assert (cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
 if cncntr == "4": run = "84-119"
 else : run ="84-105"
 par ={
 	# CsCl in water from simulated pdb:
-    "particle_atoms_cscl" :
-        condor.ParticleAtoms (number = ratio, arrival = "random", pdb_filename = "%s.pdb" %pdb_file, rotation_formalism="random", position_variation = None)
-    }
+	"particle_atoms_cscl" :
+		condor.ParticleAtoms (number = ratio, arrival = "random", pdb_filename = "%s.pdb" %pdb_file, rotation_formalism="random", position_variation = None)
+	}
 
 
 # ----- Combine source, detector and particle by constructing an Experiment Instance: -----
@@ -132,12 +133,14 @@ t_exp = time.time() # time marker for measuring propagation-time
 #outdir = this_dir +'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
 #out = this_dir +'/simulation_results/' 
 if args.outpath == this_dir:
-    out = args.outpath +'/simulation_results/'
-    if not os.path.exists(out):
-        os.makedirs(out)
+	out = args.outpath +'/simulation_results/'
+	if not os.path.exists(out):
+		os.makedirs(out)
 else: 
-    out = args.outpath 
-    assert(os.path.exists(out))("No such directory")
+	out = args.outpath 
+	#if not os.path.exists(out):
+	#	os.makedirs(out)
+	assert(os.path.exists(out))("No such directory")
 
 # ----- Output File: -----
 if noisy is None: noisy = "none" # since None is valid input
@@ -148,50 +151,50 @@ if writing: W = condor.utils.cxiwriter.CXIWriter(out+ "/%s_%s_%s_(%s-sprd%s).cxi
 
 # ---- Make an Output Directory for PLOTS: ----
 if plotting:
-    outdir = this_dir +'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+	outdir = this_dir +'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
+	if not os.path.exists(outdir):
+		os.makedirs(outdir)
 
 # ----- Simulate N Images: -----
-for i in range(N):	#require indent for loop
-    t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prints this  ##              
-    # ----- Propagate the Experiment = Generate a Diffraction Pattern: -----
-    res = Exp.propagate()
-    res["source"]["incident_energy"] = photon_energy_eV                 #[eV]
-    res["source"]["incident_wavelength"] = photon.get_wavelength()      #[m]
-    res["detector"]["pixel_size_um"] = ps                               #[um]
-    res["detector"]["detector_dist_m"] = dtc_dist                       #[m]
+for i in range(N):  #require indent for loop
+	t_loop = time.time()  ## time marker for measuring propagation-time, if logger=INFO Condor prints this  ##              
+	# ----- Propagate the Experiment = Generate a Diffraction Pattern: -----
+	res = Exp.propagate()
+	res["source"]["incident_energy"] = photon_energy_eV                 #[eV]
+	res["source"]["incident_wavelength"] = photon.get_wavelength()      #[m]
+	res["detector"]["pixel_size_um"] = ps                               #[um]
+	res["detector"]["detector_dist_m"] = dtc_dist                       #[m]
 
-    # ----- Write results to Output File: -----
-    if writing: W.write(res)    ## Write the result (Dictionary) to a CXI-file ##
-    #print("Writing File Time [s]:", time.time()-t_loop)  #  {-- if Pyton3 --}: 
-    #print "Writing File Time [s]:", time.time()-t_loop #   {-- Pyton2.7 --}
-    log_info(logger, "Writing No.%i to File took %f s." %(i+1,time.time()-t_loop))
-    # ---- Plot each Pattern: ----    
-    if plotting:
-        frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
-        intensity_pattern = res["entry_1"]["data_1"]["data"]
-        amplitudes_pattern = res["entry_1"]["data_1"]["data_fourier"]
-        # ---- Save Intensity Patterns in Plots:  "Intensity Patterns" = |"Amplitude Patterns"|^2
-        pypl.imsave( outdir  + "%s_%s_log10_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), numpy.log10(intensity_pattern), format=frmt)
-        pypl.imsave( outdir  + "%s_%s_data-nabs_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), intensity_pattern, format=frmt)
+	# ----- Write results to Output File: -----
+	if writing: W.write(res)    ## Write the result (Dictionary) to a CXI-file ##
+	#print("Writing File Time [s]:", time.time()-t_loop)  #  {-- if Pyton3 --}: 
+	#print "Writing File Time [s]:", time.time()-t_loop #   {-- Pyton2.7 --}
+	log_info(logger, "Writing No.%i to File took %f s." %(i+1,time.time()-t_loop))
+	# ---- Plot each Pattern: ----    
+	if plotting:
+		frmt = "eps" #{png, pdf, ps, eps, svg} # File Formats for SAVING
+		intensity_pattern = res["entry_1"]["data_1"]["data"]
+		amplitudes_pattern = res["entry_1"]["data_1"]["data_fourier"]
+		# ---- Save Intensity Patterns in Plots:  "Intensity Patterns" = |"Amplitude Patterns"|^2
+		pypl.imsave( outdir  + "%s_%s_log10_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), numpy.log10(intensity_pattern), format=frmt)
+		pypl.imsave( outdir  + "%s_%s_data-nabs_(r%iof10-ps%ium-ny%i-%s-sprd%s)_#%i.%s" %(name,pdb,ratio*10,ps,pxls,noisy,n_spread,i,frmt), intensity_pattern, format=frmt)
 if writing: 
-    W.close() 
-    print "Writing to CXI-file: /%s_%s_%s_(%s-sprd%s)_#%i.cxi  Finished!" %(name,run,pdb,noisy,n_spread,N)
+	W.close() 
+	print "Writing to CXI-file: /%s_%s_%s_(%s-sprd%s)_#%i.cxi  Finished!" %(name,run,pdb,noisy,n_spread,N)
 
 
 print "\t =>finished!"     #{-- if Pyton3 --}: print("\t =>finished!")
 t_prop=time.time()-t_exp    ## [s] Propagation Time measured from Exp construction
 if t_prop%3600:                  ## Print in h, min, s
-    t_h = int(t_prop)/3600
-    t_m =int(t_prop-(t_h)*3600)/60
-    t_s = t_prop-t_h*3600-t_m*60
-    #print "Propagation Time: ", t_h, "h, ", t_m, " min", t_s, " s"
-    log_info(logger, "Propagation Time %i h: %i min: %5.1f s" %(t_h,t_m,t_s))
-    log_debug(logger, "Propagation Time %i h: %i min: %5.1f s" %(t_h,t_m,t_s))
+	t_h = int(t_prop)/3600
+	t_m =int(t_prop-(t_h)*3600)/60
+	t_s = t_prop-t_h*3600-t_m*60
+	#print "Propagation Time: ", t_h, "h, ", t_m, " min", t_s, " s"
+	log_info(logger, "Propagation Time %i h: %i min: %5.1f s" %(t_h,t_m,t_s))
+	log_debug(logger, "Propagation Time %i h: %i min: %5.1f s" %(t_h,t_m,t_s))
 elif t_prop%60:                  ## or Print in min, s
-    t_m =int(t_prop)/60
-    t_s=t_prop-t_m*60
-    #print "Propagation Time: ", t_m, "min, ", t_s, " s"
-    log_info(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
-    log_debug(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
+	t_m =int(t_prop)/60
+	t_s=t_prop-t_m*60
+	#print "Propagation Time: ", t_m, "min, ", t_s, " s"
+	log_info(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
+	log_debug(logger, "Propagation Time %f min: %f s" %(t_m,t_s))
