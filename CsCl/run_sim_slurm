@@ -1,12 +1,13 @@
 #!/bin/bash
 
 ## Number of 'runs' or 'shots' to generate ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
-#npatterns=1
+#npatterns=1 ## DEBUGGING ##
 npatterns=100
 
 ## Simulation Parameters ## '4M0_ed'-'4M90_ed' and '6M0_ed'-'6M90_ed'
 
-pdbf=('4M0_ed') 
+#pdbf=('4M0_ed') 
+pdbf=('4M0_ed' '4M90_ed') 
 ## PDB-files '4M0_ed'-'4M90_ed' and '6M0_ed'-'6M90_ed' : ##
 #pdf=()
 #for (( i=0; i<=90; i++)); do  ##arr=(), arr+=(4)	#Append value(s), or:Unix=("${Unix[@]}" "AIX" "HP-UX")
@@ -15,18 +16,20 @@ pdbf=('4M0_ed')
 #done	
 
 ## Noise (if None then filename '..__.')##
-noise=('None' 'poisson')
-name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
+#noise=('None' 'poisson')
+noise=('None')
+#name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
+name=('Fnoise_BeamNarrInt')
 #name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None 
 
 ## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
 CURRDIR=`pwd` 
-LOGGDIR="$CURRDIR/Loggs"
+LOGGDIR="$CURRDIR/Loggs_2pdb"
 #BASEDIR= "/home/cldah/source/XCCA-simulations/CsCl"
 ## Store large CXI-files in scratch-folder (realtive or direct NOT WORKIN ): ##
 #STOREDIR="$CURRDIR/../../../cldah-scratch/condor_cxi_files"
 #STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files" ## WORKS ##
-STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns"
+STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-2pdb"
 #STOREDIR="$BASEDIR/cxi_files" ## PERMISSION DENIED ! ##
 #STOREDIR="$CURRDIR/cxi_files" ## WORKS ##
 #LINKNAME="store_on_scratch"
@@ -49,6 +52,9 @@ echo "STOREDIR-path for cxi-files: "$STOREDIR
 # echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
 ## Run for the different molecules and noise-environments and generatae Logg-files ##
+## Request 2 Nodes (one for each nosie) ##
+echo '#SBATCH -N2'# >> $LOGGDIR/CsCl_simulate.sh
+
 for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
 	#for (( i=0; i<=1; i++)); do  ##  or i<${#noise[@]} == i<${#name[@]} length should be eq ##
@@ -60,9 +66,12 @@ for conc in "${pdbf[@]}"; do
 		echo '#SBATCH -e '$LOGGDIR/'CsCl_simulate_'"$conc"'_'"${name[i]}"'.err' >> $LOGGDIR/CsCl_simulate.sh
 		echo '' >> $LOGGDIR/CsCl_simulate.sh
 		echo 'module load cuda' >> $LOGGDIR/CsCl_simulate.sh
-                ## Requegresst 2 GPUs per node for CUDA :##		
+                ## Request 2 GPUs per node for CUDA :##		
+		#echo '#SBATCH --gres=gpu:2'-N2 >> $LOGGDIR/CsCl_simulate.sh  
+		echo '#SBATCH --ntasks=1' >> $LOGGDIR/CsCl_simulate.sh
 		echo '#SBATCH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  
-		
+	
+
 		echo ''  >> $LOGGDIR/CsCl_simulate.sh
 		echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
 		echo 'echo "Node: $HOST" ' >> $LOGGDIR/CsCl_simulate.sh
@@ -72,15 +81,11 @@ for conc in "${pdbf[@]}"; do
 		#else	
 		#	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
 		#fi
-		echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh		
-		#SBACH --ntask=2  ## Ask for 2 Tasks(processes) ##
-		#SBACH -N2  ## Ask for 2 Nodes ##
-		#SBACH --cpus-per-task=2 ## || SBACH --gres=gpu:2 ## Choose what resources each Task will use ##
-		#srun --gres=gpu:2 -n1 --pty  $SHELL -i ## Activate GPUs ##
-
+		echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
 		## try Debbigging since Python can not find dir ##
 		#sbatch -p debug $LOGGDIR/CsCl_simulate.sh  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
-		sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ##
+		#sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!
+		sbatch -p regular -N1 -n1 --exclusive --gres=gpu:2 $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!
 		#sbatch -p scavenger $LOGGDIR/CsCl_simulate.sh ## scavenger max  30 days ##
 		#sbatch -p highmem $LOGGDIR/CsCl_simulate.sh ## highmem up infinite ##
 		##local term dep## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
