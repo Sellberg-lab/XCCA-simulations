@@ -114,3 +114,7 @@ CsCl/CsCl-PDB_ed/**
 # MacOS .Ds_Store- files
 .DS_Store
 **/.DS_Store
+*.DS_Store
+
+# Bash-files generated in a run on cluster
+*.sh
