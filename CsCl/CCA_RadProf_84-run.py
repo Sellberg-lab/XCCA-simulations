@@ -167,7 +167,7 @@ save_polar_param = True # False 		## For Saving Calculated Parameters to the fil
 
 plot_diffraction = True#False#		## if False : No plot of Diffractin Patterns ##
 random_noise_1quad =False			## Generate random Noise in one quardant ##
-calc_RadProfile = False#True 	## Calculate the radial Profile + Save to File ##
+calc_RadProfile = True 	## Calculate the radial Profile + Save to File ##
 calc_AutoCorr = True	## Auto-correlation between diff. diffraction Patterns ##
 plotting = True 		## Plot Subplot of Radial Profile and Auto-Correlation 'ave-corrs' #
 
