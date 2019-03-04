@@ -1,0 +1,79 @@
+#!/bin/bash
+
+
+#RESULTDIR="$STOREDIR/CCA_RadProf"
+runscript="CCA_RadProf_84-run.py"
+runbash="CCA_RadProf.sh"
+
+## Q-RANGE (Momentum Transfer in Radial Direction in Pixels) ##
+qrange="300 500" 
+#qrange="300 800" ## or more towards water 
+
+## NUMBER of 'runs' or 'shots' generated in simulation (name of folder) ##
+npatterns=100
+
+SIMNAME=('1' '2') # test the 2 100 patterns fist
+#SIMNAME=2x48pdb" 
+## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
+CURRDIR=`pwd` 
+#if [[ ${#SIMNAME[@]}>1 ]]; then
+STOREDIR=() ## of the CXI-files ##
+OUTDIR=()
+LOGGDIR=()
+
+for (( i=0; i<${#SIMNAME[@]}; i++));  do
+	STOREDIR+=("/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-${SIMNAME[i]}")
+	OUTDIR+=("/home/cldah/cldah-scratch/CCA_RadPrf_plots/N-$npatterns-${SIMNAME[i]}")
+	LOGGDIR+=("$CURRDIR/Loggs_${SIMNAME[i]}")
+	## Make The Directories if they do not exist ##
+	if test ! -e ${LOGGDIR[i]}; then
+		mkdir ${LOGGDIR[i]}
+		echo "Created "${LOGGDIR[i]}
+	fi
+	if test ! -e ${OUTDIR[i]}; then
+		mkdir ${OUTDIR[i]}
+		echo "Created "${OUTDIR[i]}
+	fi
+	if test ! -e ${STOREDIR[i]}; then
+		echo ${STOREDIR[i]}" \n does not exist, Path to Condor CXI-file must be valid \n \n .... aborting."
+		exit 1
+	fi
+	echo "Loaded Directory $i." #: "$STOREDIR/
+done
+
+#echo "STOREDIR-path for cxi-files: "${STOREDIR[@]}
+
+#nalloc=`squeue -u cldah | wc -l`
+#if [ $nalloc -lt 2 ]; then ## depend on local terminal active ##
+#	shalloc -p fast ## time limit ##
+#	salloc -p regular ## 2 days timelimit ##
+#fi
+
+## Request the same number of Nodes as the number of directories loaded (one for each nosie) ##
+#echo '#SBATCH -N'"${#SIMNAME[@]}" #>> $LOGGDIR/$runbash
+
+#for file in "${STOREDIR[@]}"; do
+for (( i=0; i<${#SIMNAME[@]}; i++));  do
+	echo "Running CCA and Radial Profile Plot in Directory \n ${STOREDIR[i]} ..."
+	echo '#!/bin/bash'> ${LOGGDIR[i]}/$runbash
+	echo '' >> ${LOGGDIR[i]}/$runbash
+	echo '#SBATCH -o '${LOGGDIR[i]}/'CCA_RadProf_'"${SIMNAME[i]}"'.out' >> ${LOGGDIR[i]}/$runbash
+	echo '#SBATCH -e '${LOGGDIR[i]}/'CCA_RadProf_'"${SIMNAME[i]}"'.err' >> ${LOGGDIR[i]}/$runbash
+	echo '' >> ${LOGGDIR[i]}/$runbash
+	## Request 2 CPUs per Node:##		
+	#echo '#SBATCH --gres=gpu:2'-N2 >> ${LOGGDIR[i]}/$runbash
+	echo '#SBATCH --ntasks=1' >> ${LOGGDIR[i]}/$runbash
+	echo '#SBATCH --cpus-per-task=2' >> ${LOGGDIR[i]}/$runbash
+	echo ''  >> ${LOGGDIR[i]}/$runbash
+	echo 'HOST=`hostname`' >> ${LOGGDIR[i]}/$runbash
+	echo 'echo "Node: $HOST" ' >> ${LOGGDIR[i]}/$runbash
+	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -q' "$qrange" '-d' "${STOREDIR[i]}" '-o' "${OUTDIR[i]}"  >> ${LOGGDIR[i]}/$runbash
+	#echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python CCA_RadProf_84-run.py -q 300 500 -d' "${STOREDIR[i]}" '-o' "$RESULTDIR"  >> ${LOGGDIR[i]}/$runbash
+	echo 'echo "Finished!" ' >> ${LOGGDIR[i]}/$runbash
+	## try Debbugging since Python can not find dir ##
+	##sbatch -p debug ${LOGGDIR[i]}/$runbash  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
+	##sbatch -p regular -N1 -n1 --exclusive --gres=gpu:2 ${LOGGDIR[i]}/$runbash  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!
+	sbatch -p fast -N1 -n1  ${LOGGDIR[i]}/$runbash  ## fast max 3h, max 8 Nodes ## ran out of time for 100 shots!!!
+	## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -q' "$qrange" '-d' "${STOREDIR[i]}"
+done
+squeue -u cldah
