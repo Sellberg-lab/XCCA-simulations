@@ -103,10 +103,11 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# CXI-files (too large to upload to github)
+# CXI-files (too large to upload to github) and other condor files
 #CsCl/simulation_results/*.cxi
 #CsCl/test_results/*.cxi
 *.cxi
+spsim.confout
 
 # Edited PDB-files
 CsCl/CsCl-PDB_ed/**

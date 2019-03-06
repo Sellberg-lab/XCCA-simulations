@@ -21,18 +21,23 @@ done
 #noise=('None' 'poisson')
 noise=('None')
 #name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
-name=('Fnoise_BeamNarrInt')
+name=('Fnoise_Beam-NarrInt')
 #name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None 
 
+
+runscript="test_CsCl_84-X_v6.py"
 ## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
 CURRDIR=`pwd` 
+SIMNAME="2x48pdb"
 #LOGGDIR="$CURRDIR/Loggs_2pdb" ## for 2 pdb-files ##
-LOGGDIR="$CURRDIR/Loggs_48pdb"
+#LOGGDIR="$CURRDIR/Loggs_48pdb"
+LOGGDIR="$CURRDIR/Loggs_$SIMNAME"
 #BASEDIR= "/home/cldah/source/XCCA-simulations/CsCl"
 ## Store large CXI-files in scratch-folder (realtive or direct NOT WORKIN ): ##
 #STOREDIR="$CURRDIR/../../../cldah-scratch/condor_cxi_files"
 #STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files" ## WORKS ##
-STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-2pdb"
+#STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-2pdb"
+STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-$SIMNAME"
 #STOREDIR="$BASEDIR/cxi_files" ## PERMISSION DENIED ! ##
 #STOREDIR="$CURRDIR/cxi_files" ## WORKS ##
 #LINKNAME="store_on_scratch"
@@ -56,7 +61,7 @@ echo "STOREDIR-path for cxi-files: "$STOREDIR
 
 ## Run for the different molecules and noise-environments and generatae Logg-files ##
 ## Request 2 Nodes (one for each nosie) ##
-echo '#SBATCH -N8'# >> $LOGGDIR/CsCl_simulate.sh
+echo '#SBATCH -N8' >> $LOGGDIR/CsCl_simulate.sh
 
 for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
@@ -73,7 +78,6 @@ for conc in "${pdbf[@]}"; do
 		#echo '#SBATCH --gres=gpu:2'-N2 >> $LOGGDIR/CsCl_simulate.sh  
 		echo '#SBATCH --ntasks=1' >> $LOGGDIR/CsCl_simulate.sh
 		echo '#SBATCH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  
-	
 
 		echo ''  >> $LOGGDIR/CsCl_simulate.sh
 		echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
@@ -84,7 +88,7 @@ for conc in "${pdbf[@]}"; do
 		#else	
 		#	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
 		#fi
-		echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
+		echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
 		## try Debbigging since Python can not find dir ##
 		#sbatch -p debug $LOGGDIR/CsCl_simulate.sh  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
 		#sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!

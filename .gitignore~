@@ -118,3 +118,6 @@ CsCl/CsCl-PDB_ed/**
 
 # Bash-files generated in a run on cluster
 *.sh
+
+# Rich Text Format Files
+*.rtf

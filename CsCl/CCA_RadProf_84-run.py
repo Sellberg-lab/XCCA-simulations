@@ -20,6 +20,7 @@
 #			With argparser for input from Command Line
 # Run directory must contain the Mask-folder
 # Prometheus path: /Users/Lucia/Documents/KTH/Ex-job_Docs/Simulations_CsCl/
+# lynch path: /Users/lynch/Documents/users/caroline/Simulations_CsCl/
 # Davinci: /home/cldah/source/XCCA-simulations/CsCl
 #*****************************************************************************************************************
 import argparse
@@ -37,7 +38,8 @@ from loki.RingData import RadialProfile,DiffCorr, InterpSimple ## scripts locate
 import os, time
 this_dir = os.path.dirname(os.path.realpath(__file__)) ## Get path of directory
 #this_dir = os.path.dirname(os.path.realpath('CCA_RadProf_84-run.py')) ##for testing in ipython
-
+if "/home/" in this_dir: #/home/cldah/cldah-scratch/ or /home or 
+	os.environ['QT_QPA_PLATFORM']='offscreen'
 ## --------------- ARGPARSE START ---------------- ##
 parser = argparse.ArgumentParser(description="Analyse Simulated Diffraction Patterns Through Radial Profile and Auto-Correlations.")
 
@@ -88,17 +90,11 @@ def load_cxi_data(data_file, ip, ap, get_parameters=False):
 
 	"""
 	with h5py.File(data_file, 'r') as f:
-		#O["entry_1"] = {}
-		#data_1 = {}
-		#data_1["data_fourier"] = np.asarray(f["entry_1/data_1/data_fourier"])
-		##data_1["data"]         = np.asarray(f["entry_1/data_1/data"])
-		#data_1["mask"]         = np.asarray(f["entry_1/data_1/mask"])
-		#data_1["full_period_resolution"] = np.asarray(f["entry_1/data_1/full_period_resolution"])
-		#O["entry_1"]["data_1"] = data_1
-
-		intensity_pattern = np.asarray(f["entry_1/data_1/data"])
-		amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"])
-		mask = np.asarray(f["entry_1/data_1/mask"])		# Mask + Data ???
+		#intensity_pattern = np.asarray(f["entry_1/data_1/data"])
+		#amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"])
+		intensity_pattern = np.asarray(f["entry_1/data_1/data"][0])
+		amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"][0])
+		#mask = np.asarray(f["entry_1/data_1/mask"])		# Mask + Data ???
 		#projection_image =fftshift(fftn(fftshift(amplitudes_pattern)))
 				
 		photon_e_eV = np.asarray(f["source/incident_energy"] )			# [eV]
@@ -167,7 +163,7 @@ save_polar_param = True # False 		## For Saving Calculated Parameters to the fil
 
 plot_diffraction = True#False#		## if False : No plot of Diffractin Patterns ##
 random_noise_1quad =False			## Generate random Noise in one quardant ##
-calc_RadProfile = True 	## Calculate the radial Profile + Save to File ##
+calc_RadProfile = False#True 	## Calculate the radial Profile + Save to File ##
 calc_AutoCorr = True	## Auto-correlation between diff. diffraction Patterns ##
 plotting = True 		## Plot Subplot of Radial Profile and Auto-Correlation 'ave-corrs' #
 
@@ -207,7 +203,7 @@ amplitudes_pattern = np.asarray(A_list)
 t = time.time()-t_load
 t_m =int(t)/60
 t_s=t-t_m*60
-print "\n Loading Time for %i patterns in LOKI: "%(intensity_pattern.shape[0]), t_m, "min, ", t_s, "s \n" # 5 min, 19.2752921581 s
+print "\n Loading Time for %i patterns: "%(intensity_pattern.shape[0]), t_m, "min, ", t_s, "s \n" # 5 min, 19.2752921581 s
 
 
 
@@ -251,7 +247,7 @@ if args.outpath == sim_res_dir:
 	outdir = sim_res_dir+'/%s_%s_%s_(%s-sprd%s)_#%i/' %(name,run,pdb,noisy,n_spread,N)
 else:	outdir = args.outpath
 if not os.path.exists(outdir):
-	os.makedirs(outdir)
+	os.makedirs(outdir)# os.makedirs(outdir, 0777)
 outdir_raw =outdir ## For storting raw imgs if plot_diffraction=TRUE ##
 if random_noise_1quad:
 	outdir = outdir + '/random_noise_1quad_(%s_%s_%s)/' %(pdb,noisy,n_spread)
@@ -272,7 +268,7 @@ if plot_diffraction:
 	n_plts = 3
 	cbs,cbp =  0.98, 0.02 #0.04, 0.1: left plts cb ocerlap middle fig
 	selected_shots = np.linspace(0, N, n_plts).astype(int) ## a list of only 4 selected Diffraction Patterns ##
-	fig, axs = pypl.subplots(3, n_plts, figsize=(15,12), sharey='row', sharex='col', constrained_layout=True) ## constrained_layout = label not overlap ##
+	fig, axs = pypl.subplots(3, n_plts, figsize=(15,12), sharey='row', sharex='col')#, constrained_layout=True) ## constrained_layout = label not overlap ##
 	pypl.subplots_adjust(wspace=0.1, hspace=0.2, left=0.04, right=0.92) #, OK=left=0.01(but cb ERR)
 	for shot in selected_shots: 			## only plot 4 Patterns ##
 		i = list(selected_shots).index(shot) 	## instead of a counter, use the index to number the plots ##
@@ -322,7 +318,7 @@ if plot_diffraction:
 	pypl.suptitle("Intensity Pattern vs Amplitude Pattern vs Patterson Image", fontsize=16)
 #	#### Save Plot: #### prefix = "subplot_diffraction_Patterson_w_Mask", out_fname = os.path.join( outdir, prefix)
  	#pypl.show()
- 	pic_name = '%s_%s_(%s-%s)_SUBPLOT_I-A-Diffraction_Patterson_w_Mask.%s'%(name,pdb,noisy,n_spread,frmt)
+ 	pic_name = '/%s_%s_(%s-%s)_SUBPLOT_I-A-Diffraction_Patterson_w_Mask.%s'%(name,pdb,noisy,n_spread,frmt)
  	pypl.savefig(outdir_raw + pic_name)
  	print "Plot saved in %s \n as %s" %(outdir_raw, pic_name)
 	pypl.cla() ## clears axis ##
@@ -335,33 +331,40 @@ if plot_diffraction:
 print "\n Data Analysis with LOKI.\n"
 #from pylab import *	# load all Pylab & Numpy
 
-# ---- Generate a Storage File's Prefix: ---- 
+
+# ---- Generate a Storage File's Prefix: ----                                                                 
+#prefix = '/%s_%s_' %(name,pdb)
 prefix = '%s_%s_' %(name,pdb)
-out_fname = os.path.join( outdir, prefix) 	# with directory
-#output_hdf = h5py.File( prefix + '.hdf5', 'w' )	# a - read/write/create, r - write/must-exist
+#prefix_hdf5 = '%s_%s_' %(name,pdb)
+out_fname = os.path.join( outdir, prefix)       # with directory                                              
+#out_hdf5 = os.path.join( outdir, prefix_hdf5)   # with directory                                              
+#output_hdf = h5py.File( prefix + '.hdf5', 'w' )        # a - read/write/create, r - write/must-exist         
 
 
-# ---- Some Useful Functions : ----/t/ from Sacla-tutorial
+# ---- Some Useful Functions : ----/t/ from Sacla-tutorial                                                    
 pix2invang = lambda qpix : np.sin(np.arctan(qpix*(ps*1E-6)/dtc_dist )*0.5)*4*np.pi/wl_A
 invang2pix = lambda qia : np.tan(2*np.arcsin(qia*wl_A/4/pi))*dtc_dist/(ps*1E-6)
 
 
-# ---- Set Working parameter 'img' to selected data: ----
-m_b = mask_better 	# if converting to int directly after load()
-#print "MAX(int): ", m_b.max(), " Min(int): ", m_b.min()
-if run_with_MASK: img = Ip_w_mb #or amplitudes:  np.abs(Ap_w_mb) ## All Patterns with Better-Mask-Assembled ##  ######### INT.PATT. OR AMPL.PATT
-else: img = intensity_pattern 	## All Patterns saved, give shorter name for simplicity ##
+# ---- Set Working parameter 'img' to selected data: ----                                                     
+m_b = mask_better       # if converting to int directly after load()                                          
+#print "MAX(int): ", m_b.max(), " Min(int): ", m_b.min()                                                      
+if run_with_MASK: img = Ip_w_mb #or amplitudes:  np.abs(Ap_w_mb) ## All Patterns with Better-Mask-Assembled #\
+#  ######### INT.PATT. OR AMPL.PATT                                                                           
+else: img = intensity_pattern   ## All Patterns saved, give shorter name for simplicity ##                    
 pttrn = "Int"
-if Ampl_image: 
-	img = abs(Ap_w_mb) ## The complex images in Amplitude Patterns instead of Intensity Patterns ##
+if Ampl_image:
+	mg = abs(Ap_w_mb) ## The complex images in Amplitude Patterns instead of Intensity Patterns ##       
 	pttrn = "Ampl"
 if add_noise:
 	img = Ip_w_mb_w_Ns
 	pttrn = "Int-add-noise-%iprc" %(nlevel*100)
 
-# ---- Generate a Storage File for Data/Parameters: ----
+# ---- Generate a Storage File for Data/Parameters: ----                                                      
 if calc_RadProfile or (plotting and not calc_RadProfile) or save_polar_param:
-	data_hdf = h5py.File( out_fname + '_file_Auto-corr_Radial-Profile_%s.hdf5' %(pttrn), 'a')	# a: append
+	data_hdf = h5py.File( out_fname + 'Auto-corr_Radial-Profile_%s.hdf5' %(pttrn), 'a')    # a: append   
+	#data_hdf = h5py.File( out_hdf5 + 'Auto-corr_Radial-Profile_%s.hdf5' %(pttrn), 'a')      # a: append   
+	#data_hdf = h5py.File( outdir+ prefix+ 'Auto-corr_Radial-Profile_%s.hdf5' %(pttrn), 'a')      # a: append   
 
 ##################################################################################################################
 ##################################################################################################################
@@ -603,10 +606,10 @@ if plotting:
 	corr_count =np.zeros(1)+(exposure_diffs_pol.shape[0]) #exposure_diffs_pol.shape[0] = N-1
 	tot_corr_count = np.zeros(1)
 	#print "\n tot_corr_count: ", tot_corr_count
-	from mpi4py import MPI
-	comm = MPI.COMM_WORLD
-	comm.Reduce(corr,corrsum)
-	comm.Reduce(corr_count, tot_corr_count)
+	#from mpi4py import MPI
+	#comm = MPI.COMM_WORLD
+	#comm.Reduce(corr,corrsum)
+	#comm.Reduce(corr_count, tot_corr_count)
 	#print "\n tot_corr_count after comm.Reduce(): ", tot_corr_count # N=5: [4.]
 
 	corrsum  =np.nan_to_num(corrsum)
@@ -672,7 +675,8 @@ if plotting:
 	pypl.suptitle("%s_%s_(%s-%s)_[qx-%i_qi-%i_nphi-%i]_w_Mask_%s" %(name,pdb,noisy,n_spread,qmax_pix,qmin_pix, nphi,pttrn), fontsize=sp_size)  # y=1.08, 1.0=too low(overlap radpro title)
 	fig_name = "SUBPLOT_Radial-Profile-(from-center)_Diff-Auto-Corr_(qx-%i_qi-%i_nphi-%i)_w_Mask_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
 	#pypl.show()
-	pypl.savefig( out_fname + fig_name)
+	pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
+	#pypl.savefig( outdir+ prefix + fig_name)
 	print "\n Subplot saved as %s " %fig_name
 	del fig_name, rad_pro_mean 	# clear up memory1
 	pypl.cla() ## clears axis ##

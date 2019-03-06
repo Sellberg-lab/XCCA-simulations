@@ -1,9 +1,11 @@
 #!/bin/bash
 
 
-#RESULTDIR="$STOREDIR/CCA_RadProf"
 runscript="CCA_RadProf_84-run.py"
 runbash="CCA_RadProf.sh"
+RESULTDIR="/home/cldah/cldah-scratch/CCA_RadProf_plots" ## Directory for resulting plots ##
+PYTHPATH='/davinci/Cellar/Python/miniconda3/envs/py2/bin/python'
+#PYTHPATH='python'
 
 ## Q-RANGE (Momentum Transfer in Radial Direction in Pixels) ##
 qrange="300 500" 
@@ -18,27 +20,39 @@ SIMNAME=('1' '2') # test the 2 100 patterns fist
 CURRDIR=`pwd` 
 #if [[ ${#SIMNAME[@]}>1 ]]; then
 STOREDIR=() ## of the CXI-files ##
-OUTDIR=()
-LOGGDIR=()
+OUTDIR=() ## Save the plots in sub-folder named after SIMNAME ##
+#LOGGDIR=() ## Loggs of the run ##
+LOGGDIR="$CURRDIR/Loggs"
+if test ! -e $LOGGDIR; then
+	mkdir $LOGGDIR
+	echo "Created "$LOGGDIR
+fi
+if test ! -e $RESULTDIR; then
+	mkdir $RESULTDIR
+	echo "Created "$RESULTDIR
+fi
 
 for (( i=0; i<${#SIMNAME[@]}; i++));  do
 	STOREDIR+=("/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-${SIMNAME[i]}")
-	OUTDIR+=("/home/cldah/cldah-scratch/CCA_RadPrf_plots/N-$npatterns-${SIMNAME[i]}")
-	LOGGDIR+=("$CURRDIR/Loggs_${SIMNAME[i]}")
-	## Make The Directories if they do not exist ##
-	if test ! -e ${LOGGDIR[i]}; then
-		mkdir ${LOGGDIR[i]}
-		echo "Created "${LOGGDIR[i]}
-	fi
+	OUTDIR+=("$RESULTDIR/N-$npatterns-${SIMNAME[i]}")
+	#LOGGDIR+=("$CURRDIR/Loggs_${SIMNAME[i]}")
+	## Make The Directories if they do not exist OBS dir 'condor_cxi_files' and CCA_RaPrf_plots' must exist ##
+#	if test ! -e ${LOGGDIR[i]}; then
+#		mkdir ${LOGGDIR[i]}
+#		echo "Created "${LOGGDIR[i]}
+#	fi
 	if test ! -e ${OUTDIR[i]}; then
 		mkdir ${OUTDIR[i]}
 		echo "Created "${OUTDIR[i]}
 	fi
+	## Make Sure the input folder with cxi-files exist ##
 	if test ! -e ${STOREDIR[i]}; then
-		echo ${STOREDIR[i]}" \n does not exist, Path to Condor CXI-file must be valid \n \n .... aborting."
+		echo ${STOREDIR[i]}
+		echo " does not exist, Path to Condor CXI-file must be valid...."
+		echo " ... aborting."
 		exit 1
 	fi
-	echo "Loaded Directory $i." #: "$STOREDIR/
+	echo "Loaded Directory N-$npatterns-${SIMNAME[i]}." #: "$STOREDIR/
 done
 
 #echo "STOREDIR-path for cxi-files: "${STOREDIR[@]}
@@ -50,30 +64,33 @@ done
 #fi
 
 ## Request the same number of Nodes as the number of directories loaded (one for each nosie) ##
-#echo '#SBATCH -N'"${#SIMNAME[@]}" #>> $LOGGDIR/$runbash
+echo '#SBATCH -N'"${#SIMNAME[@]}" #>> $LOGGDIR/$runbash
 
 #for file in "${STOREDIR[@]}"; do
+## if 1 Logg-dir:$LOGGDIR/$runbash ## if Multiple Dirs: ${LOGGDIR[i]}/$runbash
 for (( i=0; i<${#SIMNAME[@]}; i++));  do
-	echo "Running CCA and Radial Profile Plot in Directory \n ${STOREDIR[i]} ..."
-	echo '#!/bin/bash'> ${LOGGDIR[i]}/$runbash
-	echo '' >> ${LOGGDIR[i]}/$runbash
-	echo '#SBATCH -o '${LOGGDIR[i]}/'CCA_RadProf_'"${SIMNAME[i]}"'.out' >> ${LOGGDIR[i]}/$runbash
-	echo '#SBATCH -e '${LOGGDIR[i]}/'CCA_RadProf_'"${SIMNAME[i]}"'.err' >> ${LOGGDIR[i]}/$runbash
-	echo '' >> ${LOGGDIR[i]}/$runbash
+	echo $'Running CCA and Radial Profile with data from Directory: '
+	echo " ${STOREDIR[i]} ..."
+	echo '#!/bin/bash'> $LOGGDIR/$runbash 
+	echo '' >> $LOGGDIR/$runbash 
+	echo '#SBATCH -o '$LOGGDIR/'CCA_RadProf_'"${SIMNAME[i]}"'.out' >> $LOGGDIR/$runbash 
+	echo '#SBATCH -e '$LOGGDIR/'CCA_RadProf_'"${SIMNAME[i]}"'.err' >> $LOGGDIR/$runbash  
+	echo '' >> $LOGGDIR/$runbash 
 	## Request 2 CPUs per Node:##		
-	#echo '#SBATCH --gres=gpu:2'-N2 >> ${LOGGDIR[i]}/$runbash
-	echo '#SBATCH --ntasks=1' >> ${LOGGDIR[i]}/$runbash
-	echo '#SBATCH --cpus-per-task=2' >> ${LOGGDIR[i]}/$runbash
-	echo ''  >> ${LOGGDIR[i]}/$runbash
-	echo 'HOST=`hostname`' >> ${LOGGDIR[i]}/$runbash
-	echo 'echo "Node: $HOST" ' >> ${LOGGDIR[i]}/$runbash
-	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -q' "$qrange" '-d' "${STOREDIR[i]}" '-o' "${OUTDIR[i]}"  >> ${LOGGDIR[i]}/$runbash
-	#echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python CCA_RadProf_84-run.py -q 300 500 -d' "${STOREDIR[i]}" '-o' "$RESULTDIR"  >> ${LOGGDIR[i]}/$runbash
-	echo 'echo "Finished!" ' >> ${LOGGDIR[i]}/$runbash
-	## try Debbugging since Python can not find dir ##
-	##sbatch -p debug ${LOGGDIR[i]}/$runbash  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
-	##sbatch -p regular -N1 -n1 --exclusive --gres=gpu:2 ${LOGGDIR[i]}/$runbash  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!
-	sbatch -p fast -N1 -n1  ${LOGGDIR[i]}/$runbash  ## fast max 3h, max 8 Nodes ## ran out of time for 100 shots!!!
+	#echo '#SBATCH --gres=gpu:2'-N2 >> $LOGGDIR/$runbash 
+	echo '#SBATCH --ntasks=1' >> $LOGGDIR/$runbash 
+	#echo '#SBATCH --ntasks=2' >> $LOGGDIR/$runbash
+	#echo '#SBATCH --cpus-per-task=2' >> $LOGGDIR/$runbash  ## mem exceeded or line 12:Killed ##
+	echo '#SBATCH --cpus-per-task=4' >> $LOGGDIR/$runbash 
+	echo '#SBATCH --mem-per-cpu=8G' >>$LOGGDIR/$runbash 
+	## Request Partition: debug max 30 min, max 8 Nodes; fast max 3h, max 8 Nodes; regular max 2days, max 8 Nodes ##
+	echo '#SBATCH -p fast' >> $LOGGDIR/$runbash 
+	echo ''  >> $LOGGDIR/$runbash 
+	echo 'HOST=`hostname`' >>$LOGGDIR/$runbash 
+	echo 'echo "Node: $HOST" ' >> $LOGGDIR/$runbash
+	echo "$PYTHPATH"' '"$runscript"' -q '"$qrange"' -d '"${STOREDIR[i]}"' -o '"${OUTDIR[i]}"  >> $LOGGDIR/$runbash 
+	sbatch -N1 -n1 --exclusive  $LOGGDIR/$runbash ## fast max 3h, max 8 Nodes ## ran out of time for 100 shots!!!
 	## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -q' "$qrange" '-d' "${STOREDIR[i]}"
+	echo 'echo "Finished!" ' >> $LOGGDIR/$runbash 
 done
 squeue -u cldah
