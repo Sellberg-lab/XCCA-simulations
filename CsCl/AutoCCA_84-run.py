@@ -394,7 +394,7 @@ if save_polar_param:
 	else: 
 		del data_hdf['q_mapping']
 		dset = data_hdf.create_dataset('q_mapping',data = q_map)
-	del Interp, cntr # Free up memory
+	del  cntr # Free up memory
 	# ---- Save by closing file: ----
 	if  not calc_AutoCorr and not plotting:
 		data_hdf.close()
@@ -458,7 +458,7 @@ if calc_AutoCorr:
 				dset = data_hdf.create_dataset('exp_diff_pairs', data=np.asarray(exp_diff_pairs))
 		exposure_diffs = exp_diff_pairs #exposure_diffs_cart #exposure_diffs_pol
 	#print "exposure diff vector's shape", exposure_diffs_cart.shape, ' in polar ", exposure_diffs_pol.shape
-
+	del Interp
 	# ---- Autocorrelation of each Pair: ----
 	print "\n Starting to Auto-Correlate the Polar Images...\n"
 	#acorr = [RingData.DiffCorr( exposure_diffs_cart).autocorr(), RingData.DiffCorr( exposure_diffs_pol ).autocorr()]
@@ -586,7 +586,7 @@ if plotting:
 		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
 		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
 
-	ave_corr_title = ax.set_title(r"Average of %d corrs [%s] with limits $\mu \pm 2\sigma$"%(tot_corr_count[0], pttrn) , fontsize=sb_size)
+	ave_corr_title = ax.set_title(r"Average of %d corrs [%s] with limits $\mu \pm 2\sigma$"%(tot_corr_count[0], pttrn),  fontsize=sb_size)
 	ave_corr_title.set_y(1.08) # 1.1)
 	############################## [fig.b] End ##############################
 	
