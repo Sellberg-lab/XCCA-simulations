@@ -586,7 +586,7 @@ if plotting:
 		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
 		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
 
-	ave_corr_title = ax.set_title(r"Average of %d corrs [%s] with limits $\mu \pm 2\sigma$"%(tot_corr_count[0], pttrn)  fontsize=sb_size)
+	ave_corr_title = ax.set_title(r"Average of %d corrs [%s] with limits $\mu \pm 2\sigma$"%(tot_corr_count[0], pttrn) , fontsize=sb_size)
 	ave_corr_title.set_y(1.08) # 1.1)
 	############################## [fig.b] End ##############################
 	
