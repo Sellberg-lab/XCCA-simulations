@@ -14,7 +14,7 @@
 #              (and FFT-shifted)
 #   Patterson_Image '..._patterson_image_...' are from FFTshift-Fast Fourier transforms-FFTshift
 #           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
-# 2019-02-27   @ Caroline Dahlqvist cldah@kth.se
+# 2019-02-27 v1 @ Caroline Dahlqvist cldah@kth.se
 #			CCA_RadProf_84-run.py
 #			compatable with test_CsCl_84-X_v6- generated cxi-files
 #			With argparser for input from Command Line
@@ -40,6 +40,7 @@ this_dir = os.path.dirname(os.path.realpath(__file__)) ## Get path of directory
 #this_dir = os.path.dirname(os.path.realpath('CCA_RadProf_84-run.py')) ##for testing in ipython
 if "/home/" in this_dir: #/home/cldah/cldah-scratch/ or /home or 
 	os.environ['QT_QPA_PLATFORM']='offscreen'
+
 ## --------------- ARGPARSE START ---------------- ##
 parser = argparse.ArgumentParser(description="Analyse Simulated Diffraction Patterns Through Radial Profile and Auto-Correlations.")
 
@@ -51,18 +52,6 @@ parser.add_argument('-o', '--outpath', dest='outpath', default='dir_name', type=
 
 #parser.add_argument('-f', '--fname', dest='sim_name', default='test', type=str,
 #      help="The Name of the Simulation. Default name is 'test'.")
-#parser.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0_ed', type=str,
-#      help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
-
-#parser.add_argument('-n', '--n-shots', dest='number_of_shots', required=True, type=int, help="The Number of Diffraction Patterns to Simulate. Required for run. Must be integer.")
-#parser.add_argument('-n', '--n-shots', dest='number_of_shots', default=None, type=int, 
-#      help="The Number of Diffraction Patterns to Simulate. Required for run. Must be integer.")
-
-
-#parser.add_argument('-dn', '--dtctr-noise', dest='dtct_noise', default=None, type=str,
-#      help="The Type of Detector Noise to Simulate: None, 'poisson', 'normal'=gaussian, 'normal_poisson' = gaussian and poisson. Default is 'None'.")
-#parser.add_argument('-dns', '--dtctr-noise-spread', dest='nose_spread', default=None, type=float, 
-#      help="The Spread of Detector Noise to Simulate, if Noise is of Gaussian Type, e.g. 0.005000.")
 
 parser.add_argument('-q', '--q-range', dest='q_range', nargs=2, default="0 850", type=int, 
       help="The Pixel range to caluate polar images and their correlations. Default is '0 850'.") ##type=float)
@@ -92,8 +81,8 @@ def load_cxi_data(data_file, ip, ap, get_parameters=False):
 	with h5py.File(data_file, 'r') as f:
 		#intensity_pattern = np.asarray(f["entry_1/data_1/data"])
 		#amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"])
-		intensity_pattern = np.asarray(f["entry_1/data_1/data"][0])
-		amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"][0])
+		intensity_pattern = np.asarray(f["entry_1/data_1/data"])
+		amplitudes_pattern = np.asarray(f["entry_1/data_1/data_fourier"][0:5])
 		#mask = np.asarray(f["entry_1/data_1/mask"])		# Mask + Data ???
 		#projection_image =fftshift(fftn(fftshift(amplitudes_pattern)))
 				
@@ -161,9 +150,9 @@ Ampl_image = False			## The complex images in Amplitude Patterns instead of Inte
 add_noise = False						## Add Generated Noise to Correlations ##
 save_polar_param = True # False 		## For Saving Calculated Parameters to the file ##
 
-plot_diffraction = True#False#		## if False : No plot of Diffractin Patterns ##
+plot_diffraction = False#		## if False : No plot of Diffractin Patterns ##
 random_noise_1quad =False			## Generate random Noise in one quardant ##
-calc_RadProfile = False#True 	## Calculate the radial Profile + Save to File ##
+calc_RadProfile = True 	## Calculate the radial Profile + Save to File ##
 calc_AutoCorr = True	## Auto-correlation between diff. diffraction Patterns ##
 plotting = True 		## Plot Subplot of Radial Profile and Auto-Correlation 'ave-corrs' #
 
@@ -235,10 +224,12 @@ if len(fnames)>1:
 else :	pdb = cncntr_start
 run=fnames[0].split('84-')[-1][0:3] 		## 3rd index excluded ##
 noisy = fnames[0].split('_ed_(')[-1].split('-sprd')[0]
-n_spread = fnames[0].split('-sprd')[-1].split(')_')[0]
+#n_spread = fnames[0].split('-sprd')[-1].split(')_')[0] ## for files that ends with '_#N.cxi' ##             
+n_spread = fnames[0].split('-sprd')[-1].split(')')[0] ## for files that ends with '.cxi' ##
 name = fnames[0].split('_84-')[0].split('/')[-1]
 N = intensity_pattern.shape[0] 	## the Number of Pattersn loaded ## 
-## /.../noisefree_Beam-NarrInt_84-105_6M90_ed_(none-sprd0)_#5.cxi
+## /.../noisefree_Beam-NarrInt_84-105_6M90_ed_(none-sprd0)_#5.cxi                                            
+##  /.../Fnoise_BeamNarrInt_84-119_4M0_ed_(none-sprd0).cxi
 
 
 ## ---- Make an Output Dir: ----##
@@ -411,7 +402,7 @@ if calc_RadProfile:
 	t = time.time()-t_RF1
 	t_m =int(t)/60
 	t_s=t-t_m*60
-	print "\n Radial Profile & Calculation Time in LOKI: ", t_m, "min, ", t_s, " s \n" # @Lynch: 38 min, @Prometheus:
+	print "\n Radial Profile & Calculation Time in LOKI: ", t_m, "min, ", t_s, " s \n" # @Lynch: 38 min 
 ##################################################################################################################
 ##################################################################################################################
 
@@ -500,6 +491,8 @@ if calc_AutoCorr:
 
 	exposure_diffs_pol =polar_imgs_norm[:-1]-polar_imgs_norm[1:]	# Polar Imgs
 	exposure_diffs_pol = np.asarray(exposure_diffs_pol) 	# = (4, 190, 5)
+	#edp_pairs =polar_imgs_norm[:-1:2]-polar_imgs_norm[1::2]
+	#edp_pairs = np.asarray(edp_pairs)
 	
 	#print "exposure diff vector's shape", exposure_diffs_cart.shape, ' in polar ", exposure_diffs_pol.shape
 
@@ -602,9 +595,13 @@ if plotting:
 		if corr is None:	corr = acorr[i]
 		else :	corr += acorr[i]		# adter loop cr.shape = (190, 5)
 	#print "\n corr shape: ", acorr[ind].shape, "\n & corr : ", corr.shape
-	corrsum = np.zeros_like(corr)		
+	corrsum = corr
 	corr_count =np.zeros(1)+(exposure_diffs_pol.shape[0]) #exposure_diffs_pol.shape[0] = N-1
-	tot_corr_count = np.zeros(1)
+	tot_corr_count = [ corr.shape[0] ]
+	## ---- if running MPI: ---- ##
+	#corrsum = np.zeros_like(corr)		
+	#corr_count =np.zeros(1)+(exposure_diffs_pol.shape[0]) #exposure_diffs_pol.shape[0] = N-1
+	#tot_corr_count = np.zeros(1)
 	#print "\n tot_corr_count: ", tot_corr_count
 	#from mpi4py import MPI
 	#comm = MPI.COMM_WORLD
