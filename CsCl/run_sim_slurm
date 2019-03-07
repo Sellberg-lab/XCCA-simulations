@@ -1,43 +1,56 @@
 #!/bin/bash
 
+SIMNAME='2pdbPssn'  ## 48pdb
+runscript='test_CsCl_84-X_v6.py'
+PYTHPATH='/davinci/Cellar/Python/miniconda3/envs/py2/bin/python'
 ## Number of 'runs' or 'shots' to generate ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
 #npatterns=1 ## DEBUGGING ##
 npatterns=100
 
+#
 ## Simulation Parameters ## '4M0_ed'-'4M90_ed' and '6M0_ed'-'6M90_ed'
+#
 
 #pdbf=('4M0_ed') ## Test 1 file ##
-#pdbf=('4M0_ed' '4M90_ed')  ##test 2 files ##
-## PDB-files '4M0_ed'-'4M90_ed' and '6M0_ed'-'6M90_ed' : ##
-pdbf=()
+pdbf=('4M0_ed' '4M90_ed')  ##test 2 files ##
+
+## ALL PDB-files '4M0_ed'-'4M90_ed' AND/OR '6M0_ed'-'6M90_ed' : ##
+#pdbf=()
 #for (( i=0; i<=90; i++)); do  ##arr=(), arr+=(4)	#Append value(s), or:Unix=("${Unix[@]}" "AIX" "HP-UX")
-for(( i=1; i<=89; i=i+2)); do ## The other half of the pdf; odd indices ##
+#for(( i=1; i<=89; i=i+2)); do ## The other half of the pdf; odd indices ##
 #for (( i=0; i<=90; i=i+2)); do  ## Try running for even number to shorten run-time ##
-	pdbf+=('4M'"$i"'_ed') 		## eval ?  ##2nd for-loop for 6M indx 0-90 for 4Mol; indx 91-182 for 6Mol
-#	pdbf+=('4M'"$i"'_ed' '6M'"$i"'_ed') 
-done	
+#	pdbf+=('4M'"$i"'_ed') 	 ## pdbf+=('4M'"$i"'_ed' '6M'"$i"'_ed') 
+#done	
 
-## Noise (if None then filename '..__.')##
-#noise=('None' 'poisson')
-noise=('None')
+
+#noise=('None' 'poisson')  ## Noise (if None then filename '..__.')##
 #name=('Fnoise_BeamNarrInt' 'Pnoise_BeamNarrInt')
-name=('Fnoise_Beam-NarrInt')
-#name=('test_Pnoise' 'test_noisefree') # [0]= Pois, [1]=None 
+
+#noise=('None')
+#name=('Fnoise_BeamNarrInt')
+
+noise=('poission')
+name=('Pnoise_BeamNarrInt')
 
 
-runscript="test_CsCl_84-X_v6.py"
+#
+## Directories: 
+#
+
 ## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
 CURRDIR=`pwd` 
-SIMNAME="2x48pdb"
+
 #LOGGDIR="$CURRDIR/Loggs_2pdb" ## for 2 pdb-files ##
 #LOGGDIR="$CURRDIR/Loggs_48pdb"
 LOGGDIR="$CURRDIR/Loggs_$SIMNAME"
+
 #BASEDIR= "/home/cldah/source/XCCA-simulations/CsCl"
 ## Store large CXI-files in scratch-folder (realtive or direct NOT WORKIN ): ##
 #STOREDIR="$CURRDIR/../../../cldah-scratch/condor_cxi_files"
 #STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files" ## WORKS ##
 #STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-2pdb"
 STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-$SIMNAME"
+
 #STOREDIR="$BASEDIR/cxi_files" ## PERMISSION DENIED ! ##
 #STOREDIR="$CURRDIR/cxi_files" ## WORKS ##
 #LINKNAME="store_on_scratch"
@@ -61,7 +74,11 @@ echo "STOREDIR-path for cxi-files: "$STOREDIR
 
 ## Run for the different molecules and noise-environments and generatae Logg-files ##
 ## Request 2 Nodes (one for each nosie) ##
-echo '#SBATCH -N8' >> $LOGGDIR/CsCl_simulate.sh
+if [[ ${#pdbf[@]}>2 ]]; then
+    echo '#SBATCH -N8'  # >> $LOGGDIR/CsCl_simulate.sh
+else
+    echo '#SBACH -N2'  
+fi
 
 for conc in "${pdbf[@]}"; do
 	#for ns in "${noise[@]}"; do
@@ -78,6 +95,7 @@ for conc in "${pdbf[@]}"; do
 		#echo '#SBATCH --gres=gpu:2'-N2 >> $LOGGDIR/CsCl_simulate.sh  
 		echo '#SBATCH --ntasks=1' >> $LOGGDIR/CsCl_simulate.sh
 		echo '#SBATCH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  
+	
 
 		echo ''  >> $LOGGDIR/CsCl_simulate.sh
 		echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
@@ -88,7 +106,7 @@ for conc in "${pdbf[@]}"; do
 		#else	
 		#	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
 		#fi
-		echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
+		echo '$PYTHPATH $runscript -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
 		## try Debbigging since Python can not find dir ##
 		#sbatch -p debug $LOGGDIR/CsCl_simulate.sh  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
 		#sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!
@@ -99,5 +117,5 @@ for conc in "${pdbf[@]}"; do
 		##local term dep## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn "${noise[i]}" -f "${name[i]}" -n "$npatterns" -pdb "$conc"
 	done
 done
-squeue -u cldah
-#cp /home/cldah/source/XCCA-simulations/CsCl/simulation_results/ $STOREDIR/.
+squeue -u $USER
+## squeue -u whoami

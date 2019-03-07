@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 #*************************************************************************
 # run Simulations in Python2.7 with Condor (v1.0) for CsCl CXI-Martin run 18-105/119
 # N number of diffraction patterns are simulated and can be either plotted directly
@@ -15,6 +16,7 @@
 # 2019-02-14 v6 with Mask (from exp) Write only, no Plots, no F-tr. Store Source properties. 
 #               With Argparser
 #        @ Caroline Dahlqvist cldah@kth.se
+#		test_CsCl_84-X_v6.py
 #       Read, F-transforms & Plots with /test_results/read_cxi_84-119_v3 or CCA_cxi_84-119_v2
 # Applying the standard Condor source file in Python-site-package, as in test_simple_ex.py
 #*************************************************************************
@@ -134,13 +136,13 @@ t_exp = time.time() # time marker for measuring propagation-time
 #out = this_dir +'/simulation_results/' 
 if args.outpath == this_dir:
 	out = args.outpath +'/simulation_results/'
-	if not os.path.exists(out):
+	if not os.path.exists(out): ## os.path.isdir(out) ##
 		os.makedirs(out)
 else: 
 	out = args.outpath 
-	#if not os.path.exists(out):
+	#if not os.path.exists(out): ## os.path.isdir(out) ##
 	#	os.makedirs(out)
-	assert(os.path.exists(out))("No such directory")
+	assert(os.path.exists(out)),("No such directory!")
 
 # ----- Output File: -----
 if noisy is None: noisy = "none" # since None is valid input
