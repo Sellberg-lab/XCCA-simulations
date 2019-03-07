@@ -499,9 +499,6 @@ if plotting:
 	data_hdf.close()
 	print "\n File Closed! \n"
 
-	rad_pro_mean = rad_pros.mean(0)
-	rad_cntr = int((rad_pro_mean.shape[0]-1)/2) 	## Center index of radial profile, OBx -1 since index start at 0 not 1 ##
-	print "\n Dim of mean(Radial Profile): ", rad_pro_mean.shape, " , center pixel: ", rad_cntr ## (1800,)  ,  899 ##
 	start_pixel, end_pixel = (rad_cntr + qmin_pix), (rad_cntr + qmax_pix)
 	r_bins = np.linspace(0, (qrange_pix.shape[0]-1), num= 5, dtype=int) ## index for radial binsin pixels ##
 	print"r_bins: ", r_bins, "/n Dim r-bins ", r_bins.shape
@@ -511,8 +508,8 @@ if plotting:
 	sb_size = 16 #18
 	sp_size = 18#20
 	l_pad = 10
-	print "Radial Profile max value for q-range %i -%i: "%(qmin_pix,qmax_pix), rad_pro_mean[start_pixel : end_pixel].max()
-	fig1 = pypl.figure('RP-AC', figsize=(22,15))
+	
+	fig1 = pypl.figure('AC', figsize=(22,15))
 	## subplot , constrained_layout=True 
 	cb_shrink, cb_padd = 1.0, 0.2 
  	#### plot as in // GDrive/.../scripts/ave_corrs & 'plot_a_corr.py' #####
@@ -594,7 +591,7 @@ if plotting:
 	#pypl.show()
 	pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
 	print "\n Subplot saved as %s " %fig_name
-	del fig_name, rad_pro_mean 	# clear up memory1
+	del fig_name 	# clear up memory1
 	pypl.cla() ## clears axis ##
 	pypl.clf() ## clears figure ##
 
