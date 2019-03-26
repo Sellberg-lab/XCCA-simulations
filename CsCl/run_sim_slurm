@@ -1,6 +1,6 @@
-#!/bin/bash
+R#!/bin/bash
 
-SIMNAME='2pdbPssn'  ## 48pdb
+SIMNAME='2pdbPssn'  ## 2x46pdb
 runscript='test_CsCl_84-X_v6.py'
 PYTHPATH='/davinci/Cellar/Python/miniconda3/envs/py2/bin/python'
 ## Number of 'runs' or 'shots' to generate ## 5=1.5h, 100=?1.3d or 1000 =?12d ##
@@ -13,9 +13,7 @@ npatterns=100
 
 #pdbf=('4M0_ed') ## Test 1 file ##
 pdbf=('4M0_ed' '4M90_ed')  ##test 2 files ##
-
-## ALL PDB-files '4M0_ed'-'4M90_ed' AND/OR '6M0_ed'-'6M90_ed' : ##
-#pdbf=()
+#pdbf=()   ## ALL PDB-files '4M0_ed'-'4M90_ed' AND/OR '6M0_ed'-'6M90_ed' : 
 #for (( i=0; i<=90; i++)); do  ##arr=(), arr+=(4)	#Append value(s), or:Unix=("${Unix[@]}" "AIX" "HP-UX")
 #for(( i=1; i<=89; i=i+2)); do ## The other half of the pdf; odd indices ##
 #for (( i=0; i<=90; i=i+2)); do  ## Try running for even number to shorten run-time ##
@@ -29,7 +27,7 @@ pdbf=('4M0_ed' '4M90_ed')  ##test 2 files ##
 #noise=('None')
 #name=('Fnoise_BeamNarrInt')
 
-noise=('poission')
+noise=('poisson')
 name=('Pnoise_BeamNarrInt')
 
 
@@ -40,20 +38,10 @@ name=('Pnoise_BeamNarrInt')
 ## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
 CURRDIR=`pwd` 
 
-#LOGGDIR="$CURRDIR/Loggs_2pdb" ## for 2 pdb-files ##
-#LOGGDIR="$CURRDIR/Loggs_48pdb"
 LOGGDIR="$CURRDIR/Loggs_$SIMNAME"
 
-#BASEDIR= "/home/cldah/source/XCCA-simulations/CsCl"
-## Store large CXI-files in scratch-folder (realtive or direct NOT WORKIN ): ##
-#STOREDIR="$CURRDIR/../../../cldah-scratch/condor_cxi_files"
-#STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files" ## WORKS ##
-#STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-2pdb"
 STOREDIR="/home/cldah/cldah-scratch/condor_cxi_files/N-$npatterns-$SIMNAME"
 
-#STOREDIR="$BASEDIR/cxi_files" ## PERMISSION DENIED ! ##
-#STOREDIR="$CURRDIR/cxi_files" ## WORKS ##
-#LINKNAME="store_on_scratch"
 if test ! -e $LOGGDIR; then
 	mkdir $LOGGDIR
 	echo "Created "$LOGGDIR
@@ -95,7 +83,6 @@ for conc in "${pdbf[@]}"; do
 		#echo '#SBATCH --gres=gpu:2'-N2 >> $LOGGDIR/CsCl_simulate.sh  
 		echo '#SBATCH --ntasks=1' >> $LOGGDIR/CsCl_simulate.sh
 		echo '#SBATCH --gres=gpu:2' >> $LOGGDIR/CsCl_simulate.sh  
-	
 
 		echo ''  >> $LOGGDIR/CsCl_simulate.sh
 		echo 'HOST=`hostname`' >> $LOGGDIR/CsCl_simulate.sh
@@ -106,8 +93,8 @@ for conc in "${pdbf[@]}"; do
 		#else	
 		#	echo '/davinci/Cellar/Python/miniconda3/envs/py2/bin/python test_CsCl_84-X_v6.py -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR" >> $LOGGDIR/CsCl_simulate.sh
 		#fi
-		echo '$PYTHPATH $runscript -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
-		## try Debbigging since Python can not find dir ##
+		echo "$PYTHPATH"' '"$runscript"' -dn' "${noise[i]}" '-f' "${name[i]}" '-n' "$npatterns" '-pdb' "$conc" '-o' "$STOREDIR/" >> $LOGGDIR/CsCl_simulate.sh			
+		## try Debbugging since Python can not find dir ##
 		#sbatch -p debug $LOGGDIR/CsCl_simulate.sh  ## regular max  30 min, max 8 Nodes ## ## WORKS ##
 		#sbatch -p regular $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!
 		#sbatch -p regular -N1 -n1 --exclusive --gres=gpu:2 $LOGGDIR/CsCl_simulate.sh  ## regular max  2days, max 8 Nodes ## ran out of time for 100 shots!!!

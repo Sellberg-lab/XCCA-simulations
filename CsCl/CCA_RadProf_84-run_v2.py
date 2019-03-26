@@ -14,7 +14,7 @@
 #              (and FFT-shifted)
 #   Patterson_Image '..._patterson_image_...' are from FFTshift-Fast Fourier transforms-FFTshift
 #           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
-# 2019-02-27  v2 @ Caroline Dahlqvist cldah@kth.se
+# 2019-02-27  v2 (ACC of pairs) @ Caroline Dahlqvist cldah@kth.se
 #			CCA_RadProf_84-run.py
 #			compatable with test_CsCl_84-X_v6- generated cxi-files
 #			With argparser for input from Command Line
@@ -469,8 +469,9 @@ if calc_AutoCorr:
 	#print "\n Starting to Calculate the Polar Images...\n"
 	#polar_imgs = np.array( [ polar_mask* Interp.nearest(img[i]) for i in range( N) ] )
 	# ---- Normalize - with function: ----
-	#polar_imgs_norm =norm_polar_img(polar_imgs, mask_val=0) # Function
+	#polar_imgs_norm =norm_polar_img(polar_imgs, mask_val=0) # Function ERR! yield div with 0
 	## alt try: polar_imgs_norm = norm_data(polar_imgs)
+	# polar_imgs_norm = polar_imgs
 	#exposure_diffs_pol =polar_imgs_norm[:-1]-polar_imgs_norm[1:]	# Polar Imgs
 	#exposure_diffs_pol = np.asarray(exposure_diffs_pol) 	# = (4, 190, 5)
 

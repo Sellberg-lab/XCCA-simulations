@@ -1,8 +1,9 @@
 #!/bin/bash
 
 
-runscript="CCA_RadProf_84-run.py"
-runbash="CCA_RadProf.sh"
+script="CCA_RadProf_84-run_v1" ## "CCA_RadProf_84-run_v1.py"  ## "CCA_RadProf_84-run_v2.py"
+runscript="$script.py"
+runbash="$script.sh"
 RESULTDIR="/home/cldah/cldah-scratch/CCA_RadProf_plots" ## Directory for resulting plots ##
 PYTHPATH='/davinci/Cellar/Python/miniconda3/envs/py2/bin/python'
 #PYTHPATH='python'
@@ -14,9 +15,7 @@ qrange="300 500"
 ## NUMBER of 'runs' or 'shots' generated in simulation (name of folder) ##
 npatterns=100
 
-#SIMNAME=('1' '2') # test the 2 100 patterns fist
-SIMNAME=('2pdbPssn' )  ## 2 poisson Noise with 100 pattersn each
-#SIMNAME=2x48pdb" 
+SIMNAME=('1' '2') # test the 2 100 patterns fist 
 ## Location of the run file: /home/cldah/source/XCCA-simulations/CsCl ##
 CURRDIR=`pwd` 
 #if [[ ${#SIMNAME[@]}>1 ]]; then
@@ -75,16 +74,15 @@ for (( i=0; i<${#SIMNAME[@]}; i++));  do
 	echo " ${STOREDIR[i]} ..."
 	echo '#!/bin/bash'> $LOGGDIR/$runbash 
 	echo '' >> $LOGGDIR/$runbash 
-	echo '#SBATCH -o '$LOGGDIR/'CCA_RadProf_'"${SIMNAME[i]}"'.out' >> $LOGGDIR/$runbash 
-	echo '#SBATCH -e '$LOGGDIR/'CCA_RadProf_'"${SIMNAME[i]}"'.err' >> $LOGGDIR/$runbash  
+	echo '#SBATCH -o '$LOGGDIR/$script'_'"${SIMNAME[i]}"'.out' >> $LOGGDIR/$runbash 
+	echo '#SBATCH -e '$LOGGDIR/$script'_'"${SIMNAME[i]}"'.err' >> $LOGGDIR/$runbash  
 	echo '' >> $LOGGDIR/$runbash 
 	## Request 2 CPUs per Node:##		
 	#echo '#SBATCH --gres=gpu:2'-N2 >> $LOGGDIR/$runbash 
-	#echo '#SBATCH --ntasks=1' >> $LOGGDIR/$runbash 
-	echo '#SBATCH --ntasks=2' >> $LOGGDIR/$runbash
+	echo '#SBATCH --ntasks=1' >> $LOGGDIR/$runbash 
 	#echo '#SBATCH --cpus-per-task=2' >> $LOGGDIR/$runbash  ## mem exceeded or line 12:Killed ##
 	echo '#SBATCH --cpus-per-task=4' >> $LOGGDIR/$runbash 
-	#echo '#SBATCH --mem-per-cpu=4G' >>$LOGGDIR/$runbash 
+	echo '#SBATCH --mem-per-cpu=4G' >>$LOGGDIR/$runbash 
 	## Request Partition: debug max 30 min, max 8 Nodes; fast max 3h, max 8 Nodes; regular max 2days, max 8 Nodes ##
 	echo '#SBATCH -p fast' >> $LOGGDIR/$runbash 
 	echo ''  >> $LOGGDIR/$runbash 
@@ -96,5 +94,6 @@ for (( i=0; i<${#SIMNAME[@]}; i++));  do
 	## srun /davinci/Cellar/Python/miniconda3/envs/py2/bin/python '"$runscript"' -q' "$qrange" '-d' "${STOREDIR[i]}"
 	echo 'echo "Finished!" ' >> $LOGGDIR/$runbash 
 done
+sleep 30 
 squeue -u $USER
 ## squeue -u whoami
