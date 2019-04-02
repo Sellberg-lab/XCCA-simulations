@@ -1,7 +1,7 @@
 """
  
   In order to avoid having to type a lot of arguments intot the command line, 
-  this script runs the program 'test_CsCl_84-X_v6.py' with selected ipnut arguments.
+  this script runs the program 'simulate_CsCl_84-X_v6.py' with selected ipnut arguments.
   The program uses Condor to simulate a numer of Diffraction Patterns.
 
   Adapted from 'run_a_script' by Andrew Martin (andrew.martin@rmit.edu.au)
@@ -12,7 +12,7 @@
 
 from os import system
 
-script = 'test_CsCl_84-X_v6.py' #'test_CsCl_84-119_v6.py'
+script = 'simulate_CsCl_84-X_v6.py' 
 params = {}
 
 #####################################################

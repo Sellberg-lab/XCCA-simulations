@@ -16,7 +16,7 @@
 # 2019-02-14 v6 with Mask (from exp) Write only, no Plots, no F-tr. Store Source properties. 
 #               With Argparser
 #        @ Caroline Dahlqvist cldah@kth.se
-#		test_CsCl_84-X_v6.py
+#		simulate_CsCl_84-X_v6.py
 #       Read, F-transforms & Plots with /test_results/read_cxi_84-119_v3 or CCA_cxi_84-119_v2
 # Applying the standard Condor source file in Python-site-package, as in test_simple_ex.py
 #*************************************************************************

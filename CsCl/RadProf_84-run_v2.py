@@ -55,8 +55,8 @@ def set_program(prg):
 	if prg == "Loki" or prg =="loki": 
 		global RP_Loki
 		RP_Loki = True
-	elif  prg == "Swiss" or prg == "swiss" : global RP_Swiss; RP_Swiss = True
-	elif  prg == "Martin" or prg == "martin" : global RP_Martin; RP_Martin = True
+	elif   prg.lower() == "swiss" : global RP_Swiss; RP_Swiss = True
+	elif   prg.lower()== "martin" : global RP_Martin; RP_Martin = True
 
 # ------------------------------------------------------------
 def load_Experimental_Parameters(data_file):
