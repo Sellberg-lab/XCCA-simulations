@@ -16,7 +16,7 @@
 # 2019-02-14 v6 with Mask (from exp) Write only, no Plots, no F-tr. Store Source properties. 
 #               With Argparser
 #        @ Caroline Dahlqvist cldah@kth.se
-#		simulate_CsCl_84-X_v6.py
+#		simulate_CsCl_84-X.py is the same as test_CsCl_84-X_v6.py
 #       Read, F-transforms & Plots with /test_results/read_cxi_84-119_v3 or CCA_cxi_84-119_v2
 # Applying the standard Condor source file in Python-site-package, as in test_simple_ex.py
 #*************************************************************************
@@ -54,6 +54,7 @@ from condor.utils.log import log_info,log_debug
 parser = argparse.ArgumentParser(description= "Simulate a FEL Experiment with Condor for Silulated CsCl Molecules in Water Solution. ")
 
 parser.add_argument('-f', '--fname', dest='sim_name', default='test_mask', type=str, help="The Name of the Simulation.")
+
 parser_group = parser.add_mutually_exclusive_group(required=True)
 parser_group.add_argument('-pdb','--pdb-name', dest='pdb_name', default='4M0', type=str, help="The Name of the PDB-file to Simulate, e.g. '4M0' without file extension.")
 parser_group.add_argument('-pdbp','--pdb-path', dest='pdb_path', default=None, type=str, help="The the PDB-file to Simulate, including path, e.g. './CsCl-PDB_ed/4M0' without file extension.")
@@ -83,7 +84,10 @@ name = args.sim_name#"test_mask"  ## Name of Simulation ##
 photon_energy_eV = 9500.
 photon = condor.utils.photon.Photon(energy_eV = photon_energy_eV)  # [eV]
 #src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=200E-9, pulse_energy=1.E-3, profile_model= "gaussian")
-src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=3E-9, pulse_energy=1.E-1, profile_model= "gaussian")
+## BeamNarrInt (3nm focus, 0.1 J Pulse Energy) ##
+#src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=3E-9, pulse_energy=1.E-1, profile_model= "gaussian")
+## BeamNarrNarrInt  (1nm focus, 0.1 J Pulse Energy)  ##
+src = condor.Source(wavelength=photon.get_wavelength(), focus_diameter=1E-9, pulse_energy=1.E-1, profile_model= "gaussian")
 
 
 # ----- Construct Detector Instance (distance= 150 mm, with MASK): -----
@@ -110,13 +114,13 @@ t_det_i = time.time()
 ratio = 1     # ratio of Molecule/Salt : Water; in this case the PDB-file already includes the water
 if args.pdb_path is None: 
 	pdb= args.pdb_name # "4M0_ed"      # 92 structure-files for each concentration.(XXX_ed 78th column had to be added)
-	pdb_file ="./CsCl-PDB_ed/%s" %(pdb)    # the PDB-id name, "./CsCl-PDB/name"
+	pdb_file ="./CsCl-PDB_Clmn/%s" %(pdb)    # the PDB-id name, "./CsCl-PDB/name"
 else: 
 	pdb_file = args.pdb_path    # the PDB-id name including the path, "./CsCl-PDB/4M0"
 	parts = args.pdb_path.split('/') 
 	pdb =  parts[-1]
 cncntr = pdb.split('M')[0] ## Find which concentration was used and match to Experiment name ##
-assert (cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
+assert (cncntr == "2" or cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
 if cncntr == "4": run = "84-119"
 else : run ="84-105"
 par ={

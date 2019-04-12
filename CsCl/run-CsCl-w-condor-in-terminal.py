@@ -12,7 +12,7 @@
 
 from os import system
 
-script = 'simulate_CsCl_84-X_v6.py' 
+script = 'simulate_CsCl_84-X.py' ## Currently beam set to 1nm focus and 0.1 J in Energy ##
 params = {}
 
 #####################################################
