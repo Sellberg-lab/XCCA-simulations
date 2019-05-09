@@ -54,3 +54,16 @@ runs the Condor simulation script, simulate_CsCl_84-X.py, for each PDB-file in d
 
 run_plot_diff_slurm.sh 
 Slurm script for the Davinci-cluster: runs Plot_diffraction.py
+
+
+script in CsCl/test_result
+
+
+CCA_cxi_84-X_v3.py
+Load a CXI-file. Plot some the diffraction patterns in a subplot (intensity, amplitude and pattersson), calculate CCA with ‘Loki’ or ‘CXILT14’ and plot the results. Option to make one quadrant noisy (3 options /implementations of noise). Plot: 1-14
+
+run_CCA_84_script.py
+Python script for Command Line Arguments to pass to ‘CCA_cxil_84-X_v3.py’
+
+read_CXI_84-119_v3.py
+Load a CXI-file and plot. Several plotting options. plots : 6
