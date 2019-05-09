@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 #****************************************************************************************************************
-# Import CXI-files from simulations with Condor (v1.0) and Auto-Correlate Data
+# Import CXI-files from simulations with Condor (v1.0) and Cross-Correlate Data
 # and plot with LOKI
 # cxi-file/s located in the same folder, result saved  in subfolder "/simulation_results_N_X"
 # Simulations based on for CsCl CXI-Martin run 18-105/119
@@ -10,11 +10,12 @@
 #   Intensity Pattern = abs(Amplitude_Pattern)^2) are plotted directly as
 #   Patterson_Image '..._patterson_image_...' are from FFTshift-Fast Fourier transforms-FFTshift
 #           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
-# 2019-03-25 v4 @ Caroline Dahlqvist cldah@kth.se
-#			AutoCCA_84-run_v4.py
+# 2019-04-25 v5 @ Caroline Dahlqvist cldah@kth.se
+#			CrossCA_84-run_v5.py
 #			v4 with -s input: choose which simulated file to process
 #				without -s: process hdf5-files with stored ACC-cacluations
 #				 select if calculate with mask, select if ACC of pairs of differences, differences or all.
+#				With experiment properties saved in part-calculation-files and in summed (final) file.
 #			compatable with test_CsCl_84-X_v6- generated cxi-files
 #			With argparser for input from Command Line
 # Run directory must contain the Mask-folder
@@ -217,10 +218,12 @@ def load_cxi_data(data_file, get_parameters=False, Amplitudes = False):
 			#ip.extend(intensity_pattern),  return ip
 			return intensity_pattern
 # ------------------------------------------------------------
-#def calc_acc(images,  cntr, qmax_pix, qmin_pix, q_map, mask, data_hdf):
-def calc_acc(img,  cntr, q_map, mask, data_hdf):
+
+#def calc_acc(img, cntr, q_map, mask, data_hdf):
+def calc_ac_and_cc(img, cntr, q_map, mask, data_hdf, 
+		beam_eV, wavelength_A, pixel_size_m, detector_distance_m):
 	"""
-	Caclulate the Auto-Correlation for the imported 'data' with LOKI.
+	Caclulate the Auto-Correlation and the Cross-Correlation for the imported 'data' with LOKI.
 
 	In:
 	================
@@ -231,6 +234,10 @@ def calc_acc(img,  cntr, q_map, mask, data_hdf):
 	mask 			Pixel Maske with dead or none pixels masked out. no pixel = 0
 						pixel = 1. dim (Y,X) must be the same X,Y as in images.
 	data_hdf 		the hdf5-file handler for storing the data.
+	beam_eV 		the beam energy [eV] from the simulation
+	wavelength_A  	the beam wavelength [A] from the simulation
+	pixel_size_m 	the pixel size [m] for the detector in the simulation
+	detector_distance_m 	the distance [m] between the sample and the detctor in the simulation
 	"""
 	## ---- Some Useful Functions : ----/t/ from Sacla-tutorial                                                    
 	#pix2invang = lambda qpix : np.sin(np.arctan(qpix*(ps*1E-6)/dtc_dist )*0.5)*4*np.pi/wl_A
@@ -324,7 +331,6 @@ def calc_acc(img,  cntr, q_map, mask, data_hdf):
 	# 	#exposure_diffs_pol = np.asarray(exposure_diffs_pol) 	# = (4, 190, 5)
 	# 	pttrn = "all-DC-diff"
 
-
 		## ---- Calc difference of images from Pairs of Images and convert to polar diff-pairs-images: ---- ##
 	elif pair_diff :
 		exp_diff_pairs = img[:-1:2]-img[1::2]
@@ -340,23 +346,38 @@ def calc_acc(img,  cntr, q_map, mask, data_hdf):
 		del exp_diff_pairs 
 		gc.collect() ## Free up Memory: ##
 
-	print "exposures vector's shape", exposures.shape
+	print "exposures vector's shape", exposures.shape ## ( Nshots x Nq x Nphi) ##
 	del Interp
 
 	diff_count = exposures.shape[0]  ## The number off differenses used in the correlation cacluations ##
-	# ---- Autocorrelation of each Pair: ----
+
+	# ---- DiffCorr instance: ----##
+	if all_DC_diff: DC=DiffCorr( exposures , delta_shot=None, pre_dif=False)
+	else: DC=DiffCorr( exposures  ) # pre_dif=True
+
+	# ---- Autocorrelation of each exposure: ---- ##
 	print "\n Starting to Auto-Correlate the Images... "
 	#acorr = [RingData.DiffCorr( exposure_diffs_cart).autocorr(), RingData.DiffCorr( exposure_diffs_pol ).autocorr()]
 	#cor_mean = [RingData.DiffCorr( exposure_diffs_cart).autocorr().mean(0), RingData.DiffCorr( exposure_diffs_pol ).autocorr().mean(0)]
-	
 	#acorr = DiffCorr( exposures ).autocorr()
-	if all_DC_diff: DC=DiffCorr( exposures , delta_shot=None, pre_dif=False)
-	else: DC=DiffCorr( exposures  ) # pre_dif=True
 	acorr = DC.autocorr()
-	#cor_mean =acorr.mean(0)
-	#cor_mean = np.asarray(cor_mean)
+	print "\n Dim of ACC: ", acorr.shape
 
-
+	# ---- Crosscorrelation of each Pair (? intershell-CC): ---- ##
+	ccorr_q_sum_of_shots = []
+	#ccorr_q_mean_of_shots = []
+	#ccorr_all = np.zeros( (exposures.shape[1],exposures.shape[0],exposures.shape[1], exposures.shape[2]) )
+	for qindex in range(exposures.shape[1]): ## Nshots x (Nq x Nphi), where shots=exposures (all or differences); # = 'diff_count'  ##
+		cross_corr = DC.crosscorr(qindex)  ##  Nshots x (Nq x Nphi) ##
+		ccorr_sum = np.sum(cross_corr, 0)  		## sum over all the shots: (Nq x Nphi) ##
+		ccorr_q_sum_of_shots.append(ccorr_sum) ## in last loop: Qx(Q,phi)
+		#ccorr_mean = cross_corr.mean(0) 		## mean over all the shots ##
+		#ccorr_q_mean_of_shots.extend(ccorr_mean) ## (N,Q,phi)
+		#ccorr_all[qindex, :, :, :]= cross_corr
+	ccorr_q_sum_of_shots = np.asarray(ccorr_q_sum_of_shots) ## ? (qindex x Nq x Nphi) ##
+	#ccorr_q_mean_of_shots = np.asarray(ccorr_q_mean_of_shots) ## ? (qindex x Nq x Nphi) ##
+	print "\n Dim of <crosscorr> of all qindex: ", ccorr_q_sum_of_shots.shape
+	del exposures
 
 	# ---- Save the Calculated Radial Profile to the Storage File for Later Analyse/Plot (replace old data if exists): ---- ##
 	#if ACC_wo_MASK: pttrn = "wo_Mask_"+ pttrn
@@ -377,46 +398,53 @@ def calc_acc(img,  cntr, q_map, mask, data_hdf):
 		dset.attrs["diff_type"] = np.string_(pttrn)
 		dset.attrs["number_patterns"] = shot_count
 		dset.attrs["number_of_diffs"] = diff_count
+
+	if 'cross-correlation_sum' not in data_hdf.keys(): 
+		dset_cc =data_hdf.create_dataset( 'cross-correlation_sum', data = ccorr_q_sum_of_shots)
+		dset_cc.attrs["diff_type"] = np.string_(pttrn)
+		dset_cc.attrs["number_of_diffs"] = diff_count
+	else: 
+		del data_hdf['cross-correlation_sum']
+		dset_cc = data_hdf.create_dataset('cross-correlation_sum', data=ccorr_q_sum_of_shots)
+		dset_cc.attrs["diff_type"] = np.string_(pttrn)
+		dset_cc.attrs["number_of_diffs"] = diff_count
+
 	if 'polar_mask' not in data_hdf.keys():	data_hdf.create_dataset( 'polar_mask', data = polar_mask.astype(int)) 
 	else: 
 		del data_hdf['polar_mask']
 		dset = data_hdf.create_dataset('polar_mask', data = polar_mask.astype(int))
+	
 	if 'num_phi' not in data_hdf.keys():	data_hdf.create_dataset( 'num_phi', data = nphi, dtype='i4') #INT, dtype='i1', 'i8'f16', i4=32 bit
 	else: 
 		del data_hdf['num_phi']
 		dset = data_hdf.create_dataset('num_phi',  data = nphi, dtype='i4')
+	
 	if 'q_mapping' not in data_hdf.keys():	data_hdf.create_dataset( 'q_mapping', data = q_map)
 	else: 
 		del data_hdf['q_mapping']
 		dset = data_hdf.create_dataset('q_mapping',data = q_map)
+	
 	if 'beam_center' not in data_hdf.keys():	data_hdf.create_dataset( 'beam_center', data = cntr)
 	else: 
 		del data_hdf['beam_center']
 		dset = data_hdf.create_dataset('beam_center',data = cntr)
+	
 	if 'sum_intensity_pattern' not in data_hdf.keys(): 
-		dset = data_hdf.create_dataset( 'sum_intensity_pattern', data = np.asarray(IP_sum))
-		dset.attrs["number_patterns"] = shot_count
+		dset_ip = data_hdf.create_dataset( 'sum_intensity_pattern', data = np.asarray(IP_sum))
+		dset_ip.attrs["number_patterns"] = shot_count
+		dset_ip.attrs["detector_distance_m"]= detector_distance_m 
+		dset_ip.attrs["wavelength_Angstrom"]= wavelength_A
+		dset_ip.attrs["pixel_size_m"]= pixel_size_m 
+		dset_ip.attrs["beam_energy_eV"]= beam_eV
 	else: 
 		del data_hdf['sum_intensity_pattern']
-		dset = data_hdf.create_dataset('sum_intensity_pattern', data=np.asarray(IP_sum))
-		dset.attrs["number_patterns"] = shot_count
-	#if 'diff_type' not in data_hdf.keys():	data_hdf.create_dataset( 'diff_type', data = pttrn, dtype=h5py.special_dtype(vlen=str)) ## Py3 ## 
-	#if 'diff_type' not in data_hdf.keys():	data_hdf.create_dataset( 'diff_type', data = pttrn, dtype=h5py.special_dtype(vlen=unicode)) ## Py2 ##
-	#else: 
-	#	del data_hdf['diff_type']
-	#	#dset = data_hdf.create_dataset('diff_type', data = pttrn, dtype=h5py.special_dtype(vlen=str)) ## Py3 ## 
-	#	dset = data_hdf.create_dataset('diff_type', data = pttrn, dtype=h5py.special_dtype(vlen=unicode)) ## Py2 ##
-	#	#dset.attrs["diff_type"] = numpy.string_(pttrn)
-	#if 'number_patterns' not in data_hdf.keys(): data_hdf.create_dataset( 'number_patterns', data = shot_count, dtype='i4')
-	#else: 
-	#	del data_hdf['number_patterns']
-	#	dset = data_hdf.create_dataset('number_patterns', data=shot_count, dtype='i4' )
-	#if 'number_of_diffs' not in data_hdf.keys(): data_hdf.create_dataset( 'number_of_diffs', data = diff_count, dtype='i4')
-	#else: 
-	#	del data_hdf['number_of_diffs']
-	#	dset = data_hdf.create_dataset('number_of_diffs', data=diff_count, dtype='i4' )
+		dset_ip = data_hdf.create_dataset('sum_intensity_pattern', data=np.asarray(IP_sum))
+		dset_ip.attrs["number_patterns"] = shot_count
+		dset_ip.attrs["detector_distance_m"]= detector_distance_m 
+		dset_ip.attrs["wavelength_Angstrom"]= wavelength_A 
+		dset_ip.attrs["pixel_size_m"]= pixel_size_m 
+		dset_ip.attrs["beam_energy_eV"]= beam_eV
 
-	#del  cntr # Free up memory
 	# ---- Save by closing file: ----
 	data_hdf.close()
 	print "\n File Closed! \n"
@@ -441,6 +469,7 @@ def read_and_plot_acc(list_names, data_hdf, out_name, mask):
 	t_load =time.time()
 	ip_mean = []
 	corr_sum = []
+	cross_corr_sum = []
 	tot_corr_sum = 0	## the number of ACC perfomed, one per loaded file ##
 	tot_shot_sum = 0	## the total number of shots (diffraction pattersn) from simulation ##
 	tot_diff_sum = 0	## the number of diffs or the number of patterns in input to ACC ##
@@ -449,43 +478,52 @@ def read_and_plot_acc(list_names, data_hdf, out_name, mask):
 	diff_type_str= None
 	for file in list_names:
 		with h5py.File(file, 'r') as f:
-			dset_ac = f['auto-correlation']
-			acc=np.asarray(dset_ac)		#np.asarray(f['auto-correlation']) ## (N,Q,phi)
-			diff_count= dset_ac.attrs["number_of_diffs"]
-			shot_count= dset_ac.attrs["number_patterns"] 
-			ip_sum=np.asarray(f['sum_intensity_pattern']) ## (Y,X) ##
+			dset_ac = f['auto-correlation'] ## Data-set with ACCs ##
+			acc = np.asarray(dset_ac)		#np.asarray(f['auto-correlation'])
+			diff_count = dset_ac.attrs["number_of_diffs"]
+			shot_count = dset_ac.attrs["number_patterns"] 
+			dset_cc = f['cross-correlation_sum'] ## Data-set with Cross-Correlations (3D) ##
+			ccsummed =np.asarray(dset_cc)
+			#ip_sum=np.asarray(f['sum_intensity_pattern']) ## (Y,X) ##
+			dset_ip_sum = f['sum_intensity_pattern'] ## Data-set with sum diffraction patterns (intensity) ##
+			ip_sum=np.asarray(dset_ip_sum)  ## (Y,X) ##
 			#print "\n Dim of Sum of intensity patterns: ", ip_sum.shape
 			if file==list_names[0]:
 				q_map=np.asarray(f['q_mapping'])
-				#cntr=np.asarray(f['beam_center']) ## Not Saved Yet ##
-				#nphi=int(np.asarray(f['num_phi'])[0]) ## IndexError: too many indices for array
 				nphi=int(np.asarray(f['num_phi'])) 
 				diff_type_str =dset_ac.attrs["diff_type"]
-		corr_sum.extend(acc) ## (Nx91,Q,phi)
+				dtc_dist_m = dset_ip_sum.attrs["detector_distance_m"]
+				wl_A = dset_ip_sum.attrs["wavelength_Angstrom"]
+				ps_m = dset_ip_sum.attrs["pixel_size_m"]
+				be_eV = dset_ip_sum.attrs["beam_energy_eV"]
+		corr_sum.extend(acc) ## (N,Q,phi)
 		ip_mean.append(ip_sum) ## (Y,X)
+		cross_corr_sum.append(ccsummed)  ## (Qidx,Q,phi)
 		tot_corr_sum+= 1 ##corr_count ## calculate the number of auto-correlations loaded ##
 		tot_shot_sum+= shot_count 
 		tot_diff_sum+= diff_count 
 	#tot_shot_sum=100*91 ## !OBS:Temp fix for forgotten to store data ##
-	corr_sum = np.asarray(corr_sum)
-	corr_sum = np.sum(corr_sum, 0) ## Sum all the ACC  ##
+	corr_sum = np.asarray(corr_sum) ## 91xN(Q,phi)
+	corr_sum = np.sum(corr_sum, 0) ## Sum all the ACC (Q,phi) ##
+	cross_corr_sum  = np.sum(np.asarray( cross_corr_sum ), 0) ## sum of all the cc-summs  sum(91x(Y,X))##
 	#ip_mean = np.asarray(ip_mean )
 	print "\n length of array of Sum of intensity patterns: ", len(ip_mean)
-	ip_mean  = np.sum(np.asarray(ip_mean ), 0) ## sum of all the intensity patterns  ##
+	ip_mean  = np.sum(np.asarray(ip_mean ), 0) ## sum of all the intensity patterns  sum(91x(Y,X))##
 	print "\n Dim of Sum of intensity patterns: ", ip_mean.shape
 	#ip_mean=ip_mean.astype(float) 	## convert to float else porblem with 'same_kind' when dividing with float  ##
 	#ip_mean /= float(tot_shot_sum)	 ## mean of all the intensity patterns in float ##
 	#ip_mean = np.around(ip_mean).astype(int)	 ## Round up/down ##
 	ip_mean /= tot_shot_sum		## Alt. work only in int ##
 	print "\n Dim of Mean of intensity patterns: ", ip_mean.shape
-	print "\n dim of ACC: ", corr_sum.shape
+	print "\n Dim of ACC: ", corr_sum.shape
+	print "\n Dim of intershell-CC: ", cross_corr_sum.shape
 	t = time.time()-t_load
 	t_m =int(t)/60
 	t_s=t-t_m*60
 	print "\n Loading Time for %i patterns: "%(len(list_names)), t_m, "min, ", t_s, "s " # 5 min, 19.2752921581 s
 
 
-	## ---- Correlate the Mask : ---- ##
+	## ---- Load the Mask : ---- ##
 	#nphi = 360 ## Temp fix, stored nphi is 127 (with dtype='i4') ##
 	print "\n nphi = %i, " %(nphi)
 	qmin_pix, qmax_pix = q_map[0,2] , q_map[-1,2]
@@ -493,44 +531,72 @@ def read_and_plot_acc(list_names, data_hdf, out_name, mask):
 	Interp = InterpSimple( cntr[0], cntr[1], qmax_pix, qmin_pix, nphi, mask.shape) 
 	mask_polar = Interp.nearest(mask, dtype=bool)
 	print "\n dim of mask converted to polar space: ", mask_polar.shape
+	## ---- Auto-Correlate the Mask : ---- ##
 	mask_DC = DiffCorr(mask_polar.astype(int), pre_dif=True)
 	mask_acc = mask_DC.autocorr()
 	print "\n dim of ACC(Mask): ", mask_acc.shape
 
+	# ---- Crosscorrelation of each Pair (? intershell-CC => add 2 mask in series (2,Q,phi)): ---- ##
+	mask_crosscor = []
+	mask_polar_w_eXdim = np.zeros([1,mask_polar.shape[0],mask_polar.shape[1]])
+	mask_polar_w_eXdim[0] =mask_polar ## New Array with the polar mask but with a 3rd dim: (1,Q,phi) ##
+	mask_DC_w_Xdim = DiffCorr(mask_polar_w_eXdim.astype(int), pre_dif=True)
+	for qindex in range(corr_sum.shape[1]): ## Nshots x (Nq x Nphi), where shots=exposures (all or differences); # = 'diff_count'  ##
+		mask_crosscor_qindex = mask_DC_w_Xdim.crosscorr(qindex)  ## require len=3 #
+		ccorr_sum = np.sum(mask_crosscor_qindex, 0) 
+		mask_crosscor.append(ccorr_sum) ## in last loop: Qx(Q,phi)
+		del ccorr_sum
+	mask_crosscor = np.asarray(mask_crosscor) ##  (qindex x Nq x Nphi) ##
+
 
 	## ---- Store the Total Results : ---- ##
-	dset =data_hdf.create_dataset( 'auto-correlation-sum', data = np.asarray(corr_sum))
-	dset.attrs["diff_type"]= np.string_(diff_type_str)
-	dset.attrs["tot_number_of_diffs"]= tot_diff_sum
-	dset.attrs["tot_number_patterns"]= tot_shot_sum
-	dset.attrs["tot_number_of_corrs"]= tot_corr_sum
+	dset_acc = data_hdf.create_dataset( 'auto-correlation-sum', data = np.asarray(corr_sum))
+	dset_acc.attrs["diff_type"]= np.string_(diff_type_str)
+	dset_acc.attrs["tot_number_of_diffs"]= tot_diff_sum
+	dset_acc.attrs["tot_number_patterns"]= tot_shot_sum
+	dset_acc.attrs["tot_number_of_corrs"]= tot_corr_sum
+
 	data_hdf.create_dataset( 'mask_auto-correlation', data = np.asarray(mask_acc))
+	data_hdf.create_dataset( 'mask_cross-correlation', data = np.asarray(mask_crosscor))
 	data_hdf.create_dataset( 'q_mapping', data = q_map)
 	#data_hdf.create_dataset( 'tot-corr', data = tot_corr_sum, dtype='i4' )
 	#data_hdf.create_dataset( 'tot-shots', data = tot_shot_sum, dtype='i4' )
 	data_hdf.create_dataset( 'num_phi', data = nphi, dtype='i4') ## i4 = 32 -bit ##
 	#data_hdf.create_dataset( 'diff_type', data = diff_type_str, dtype=h5py.special_dtype(vlen=str))
-	data_hdf.create_dataset( 'mean_intensity_pattern', data = np.asarray(ip_mean))
+
+	dset_ip = data_hdf.create_dataset( 'mean_intensity_pattern', data = np.asarray(ip_mean))
+	dset_ip.attrs["detector_distance_m"]= dtc_dist_m 
+	dset_ip.attrs["wavelength_Angstrom"]= wl_A 
+	dset_ip.attrs["pixel_size_m"]= ps_m 
+	dset_ip.attrs["beam_energy_eV"]= be_eV
+
+	dset_cc = data_hdf.create_dataset( 'cross-correlation_sum', data = np.asarray(cross_corr_sum))
+	dset_cc.attrs["diff_type"]= np.string_(diff_type_str)
+	dset_cc.attrs["tot_number_of_diffs"]= tot_diff_sum
+	dset_cc.attrs["tot_number_patterns"]= tot_shot_sum
+	dset_cc.attrs["tot_number_of_corrs"]= tot_corr_sum
 	# ---- Save by closing file: ----
 	data_hdf.close()
 	print "\n File Closed! \n"
 
 	if str(args.plt_set).lower() in ('single', 'all'):
-		plot_acc(corr_sum,tot_corr_sum,q_map,nphi,diff_type_str,mask_acc,ip_mean,tot_shot_sum, out_name, mask=mask) ## tot_shot_sum
+		plot_acc(corr_sum,tot_corr_sum,q_map,nphi,diff_type_str,mask_acc,ip_mean,tot_shot_sum,dtc_dist_m,wl_A,ps_m,be_eV, cross_corr_sum,mask_crosscor,  out_name, mask=mask) ## tot_shot_sum
 	if str(args.plt_set).lower() in ('subplot','all'):
 		subplot_acc(corr_sum,tot_corr_sum,q_map,nphi,diff_type_str,mask_acc,ip_mean,tot_shot_sum, out_name, mask=mask) ## tot_shot_sum
+		#subplot_acc(corr_sum,tot_corr_sum,q_map,nphi,diff_type_str,mask_acc,ip_mean,tot_shot_sum,dtc_dist_m,wl_A,ps_m,be_eV, out_name, mask=mask) ## tot_shot_sum
+
 
 	exit(0)  ## Finished ! ##
 
 # ------------------------------------------------------------
 
-def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_count,  out_fname, mask=None):
+def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_count,dtc_dist_m,wl_A,ps_m,be_eV ,cross_corrsum,mask_crosscor,  out_fname, mask=None):
 	"""
 	Read in ACC data from multiple files in '' list of filenames. 
 	Plot the average from all read-in files.
 
 	In:
-	corrsum 			The total sum of all the auto-correlations
+	corrsum 			The total sum of all the auto-correlations (Qs, phi)
 	corr_count 			 The total number of corrlations calculated in the 'corrsum',
 							e.g. the total number of differeneses that was used to calculate the correlations.
 	q_map 				The momentum transfer vaules, Qs', in pixels for which the correlations were calculated.
@@ -541,14 +607,35 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	IP_mean 			The Mean of all Intensity Patterns (or Amplitude Patterns).
 	mask 				The Detector Mask (for plotting the intensity Pattern wth mask)
 	shot_count 			The total number of shots summed in 'IP_mean' and loaded.
+	cross_corrsum 		 ... (Qindex, Qs, phi)
 	out_fname 			The pathname and prefix of the filename of the plot.
 
 	Out:				Plot of the auto-correlation.
 	"""
 	print "\n Plotting..."
+
+	## ---- Local Parameters for all plots: ---- ##
 	frmt = "eps" 	## Format used to save plots ##
 	## columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
 	qmin_pix, qmax_pix = q_map[0,2] , q_map[-1,2] ## first and last values in cloumn 2 = q [pixels] ##
+	radii = q_map[:,2] 	 ## column 2: q [pixels]. ##
+
+	## ---- Divide the Auto-Correlation(data) with the Auto-correlation(Mask): ---- ##
+	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
+	
+	## ---- Calculate the average intensity in Q (row-bby-row): ---- ##
+	qs_mean= np.asarray([	corrsum_m[i,:].mean() for i in range(corrsum_m.shape[0])	])  ## (Q,phi) where row: Q; columns: phi ##
+	# qs_mean = corrsum_m.mean(axis=0) ## Row-wise mean ##
+	print "\n Dim of Qs mean: ", qs_mean.shape
+
+	## interesting pixels/invA:  400 - 487/1.643 invAA : ##
+	r_pixel=425 	## approx 1.45 invAA ##
+	idx = np.argmin( np.abs(   radii-r_pixel  ) ) ## the index for the pixel ##
+
+	## ---- Divide the Cross-Correlation(data) at Q=idx with the Cross-Correlation(Mask): ---- ##
+	cross_sum_m = np.divide(cross_corrsum[idx], mask_crosscor[0], out=None, where=mask_crosscor!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
+
+
 	## --- Font sizes and label-padding : ---- ##
 	axis_fsize = 14		## Fontsize of axis labels ##
 	tick_fsize = 12		## Size of Tick-labels ##
@@ -560,77 +647,203 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 
 	padC = 50#10#50 	# pad the edges of the correlation (remove self-correlation junk) /l.181,  ave_corrs-script has 50 ##
 
-	if 'all' in pttrn : frac = 1#0.8 			## Limit the vmax with this percentage, for 2M need 1.0 ##
+	if 'all' in pttrn : frac = 1#0.8 		## Limit the vmax with this percentage, for 2M need 1.0 ##
 	else: frac = 1
+
+
+
+	def plot_2std_to_file(fig, data, norm_name, fig_name, title=None):
+		"""
+		Plot a 2D image with limits mean-2*std to mean + 2*std
+		in polar coordinates.
+
+		fig			the figure to plot in, figure handle
+		data 		the calculated FFT-coefficients to plot, 2D array
+		norm_name 	the normalisations except for the mask, string.
+		filename	part of figure name unique to plot, string
+		"""
+
+		m = data[:,padC:-padC].mean() 	# MEAN
+		s = data[:,padC:-padC].std() 	# Standard Deviation
+		vmin = m-2*s
+		vmax = m+2*s
+		
+		ax = pypl.gca()
+		polar_axis = True 	## Plot with axis in polar coord and with polar labels, else pixels ##
+
+		if polar_axis:
+			im = ax.imshow( data,
+		                 extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
+		                    vmin=vmin, vmax=vmax*frac, aspect='auto')
+		else : im =ax.imshow(data, vmin=vmin, vmax=vmax*frac, aspect='auto' )
+		cb = pypl.colorbar(im, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)
+		cb.set_label(r'Auto-correlation of Intensity Difference [a.u.]',  size=12) # normed intensity
+		cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
+		cb.update_ticks()
+
+		if polar_axis:
+			# #---- Adjust the X-axis: ----  		##
+			#xtic = ax.get_xticks()  	#[nphi/4, nphi/2, 3*nphi/4]
+			phi=2*np.pi  ## extent of sigma in angu;ar direction ##
+			xtic = [phi/4, phi/2, 3*phi/4]
+			xlab =[ r'$\pi/2$', r'$\pi$', r'$3\pi/2$'] #nphi_bins or phi_bins_5
+			ax.set_xticks(xtic), ax.set_xticklabels(xlab)
+
+			# #---- Adjust the Y-axis: ----
+			nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
+			#print "q-map : ", q_map
+			q_bins = np.linspace(0, nq, num= ax.get_yticks().shape[0], dtype=int)  ## index of axis tick vector ##
+			#print "Dim q-bins: ", q_bins.shape[0], " max:", q_bins.max(), " min:", q_bins.min()
+			#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
+			q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
+			print "q_label: ", q_label
+
+			ytic=ax.get_yticks() # = qrange_pix[q_bins] ## choose the equivalent q pixels from q_min-q_max
+			#ylab= q_label
+			ax.set_yticklabels(q_label)
+			ax.set_yticks(ytic)
+
+			# #---- Label xy-Axis: ----
+			ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
+			ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
+		pypl.gca().tick_params(labelsize=axis_fsize, length=9)
+		if title is None:
+			Norm_ave_corr_title = ax.set_title(r"Average of %d corrs [%s] %s with limits $\mu \pm 2\sigma$"%(corr_count, pttrn, norm_name),  fontsize=sb_size)
+		else: 
+			Norm_ave_corr_title = ax.set_title(title)
+		Norm_ave_corr_title.set_y(1.08) # 1.1)
+		############################## [fig.] End ##############################
+		fig_name = fig_name + "_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+		#pypl.show()
+		#pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
+		fig3.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
+		print "\n Plot saved as %s " %fig_name
+		del fig_name 	# clear up memory
+		pypl.cla() ## clears axis ##
+		pypl.clf() ## clears figure ##
+
+
+
+	def plot_even_odd(fig, data, norm_name, fig_name):
+		"""
+		Plot the even and odd coefficients separately in 
+		side-by-side plots
+
+		fig			the figure to plot in, figure handle
+		data 		the calculated FFT-coefficients to plot, 2D array
+		norm_name 	the normalisations except for the mask, string.
+		filename	part of figure name unique to plot, string
+		"""
+		
+		## ---- Phi even-odd = [1,20]: ---- ##
+		lim=21#13 	## the number of coefficients to plot. 51 is too many !
+		ax_even=fig.add_subplot(121)
+		ax_odd=fig.add_subplot(122, sharex=ax_even, sharey=ax_even)
+		pypl.subplots_adjust(wspace=0.2, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
+		cmap = pypl.get_cmap('jet')
+		for i in range(1,lim):  
+			color = cmap(float(i)/lim)
+			if i % 2 == 0:		## only even i:s ##
+				ax_even.plot(data[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
+				ax_even.set_title("even n:s")
+				ax_even.legend()
+				q_bins = np.linspace(0, (q_map.shape[0]-1), num= ax_even.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
+				q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
+				ax_even.set_xticklabels(q_label), ax_even.set_xticks(q_bins)
+				ax_even.set_xlabel(r'q', fontsize = axis_fsize)
+
+			else:				## only odd ##
+				ax_odd.plot(data[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
+				ax_odd.set_title("odd n:s")
+				ax_odd.legend()
+				ax_odd.set_xticklabels(ax_even.get_xticklabels()), ax_odd.set_xticks(ax_even.get_xticks())
+				ax_odd.set_xlabel(r'q', fontsize = axis_fsize)
+		pypl.subplots_adjust(wspace=0.3, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
+			############################### [fig.] End ##############################
+		#pypl.title('Re{FFT} $\phi [1,%i] $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(lim,corr_count, pttrn),  fontsize=sb_size)
+		pypl.suptitle("Re{FFT} $\phi [1,%i]$ of Average of %d corrs [%s] \n (Normalized with Mask %d)"%(lim,corr_count, pttrn, norm_name),  fontsize=sb_size)
+		# #pypl.subplots_adjust(wspace=0.3, left=0.08, right=0.95, top=0.85, bottom=0.15)
+		#pypl.show()
+		fig_name = fig_name + 'phi-1-%i_(qx-%i_qi-%i_nphi-%i)_%s.%s'%(lim,qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+		fig.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
+		print "\n Subplot saved as %s " %fig_name
+		del fig_name, data, norm_name 	# clear up memory
+		gc.collect() 
+		pypl.cla() ## clears axis ##
+		pypl.clf() ## clears figure ##
+
+
+
+	def plot_radial_profile(fig, data, norm_name, fig_name):
+		"""
+		Plot the square root 0th Fourier Coefficient, a.k.a the 'Radial Profile',
+		'Azimuthal Average'
+
+		fig			the figure to plot in, figure handle
+		data 		the calculated FFT-coefficients to plot, 2D array
+		norm_name 	the normalisations except for the mask, string.
+		filename	part of figure name unique to plot, string
+		"""
+
+		## ---- Bottom x-Axis: ---- ##
+		ax_bttm = pypl.gca()
+		ax_bttm.set_xlabel("r [pixels]", fontsize=axis_fsize, labelpad=l_pad) ## for Bottom-Axis in r [pixels] ##
+
+		## ---- Phi = 0 : ---- ##
+		#ax_bttm.plot(data[:,0].real, lw=2)	## plot the 0th coefficient ##
+		ax_bttm.plot(np.sqrt(data[:,0].real), lw=2) ## sqrt of 0th F-coeffient = radial profile ##
+		ax_bttm.set_ylabel("Radial Intensity (ADU)", fontsize=axis_fsize)
+
+		qp_bins = np.linspace(0, q_map.shape[0], endpoint=False, num= ax_bttm.get_xticks().shape[0], dtype=int) #  endpoint=True,
+		qp_label = [ '%i'%(q_map[x,2]) for x in qp_bins] 	## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
+		ax_bttm.set_xticks(qp_bins)	## ? ticks in wrong place, 300-800 in pixles ## bins as index along the array of data[:,0].real
+		ax_bttm.set_xticklabels(qp_label)
+		ax_bttm.grid(b=True, linestyle=':')
+		## grid(b=None, which='major', axis='both', **kwargs) **kwargs:(color='r', linestyle='-', linewidth=2)
+		## linestyle	{'-', '--', '-.', ':', '', (offset, on-off-seq), ...}
+		
+		## ---- Top x-Axis: ---- ##
+		ax_top = ax_bttm.twiny()  ## Top Axis, Share the same y Axis ##	
+		ax_top.set_xlabel("Q $(\AA^{-1})$", fontsize=axis_fsize, labelpad=l_pad)  ## for Top-Axis in q [inv Angstrom] ##	
+		qA_label = [ '%.3f'%(q_map[x,1]) for x in qp_bins] ## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
+		ax_top.set_xticks(ax_bttm.get_xticks())
+		ax_top.set_xticklabels(qA_label)
+		ax_top.set_xbound(ax_bttm.get_xbound())
+		pypl.gca().tick_params(labelsize=tick_fsize, length=9)
+
+		#main_title=pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] (Normalized with Mask %s )'%(corr_count, pttrn, norm_name),  fontsize=sb_size)
+		main_title=pypl.title('$ \sqrt{Re\{\textrm{FFT}(\phi)\}}|_{n=0}$  of Average of %d corrs [%s] \n(Normalized with Mask %s )'%(corr_count, pttrn, norm_name),  fontsize=sb_size)
+	
+		main_title.set_y(1.1) # 1.1), 1.08 OK but a bit low, 1.04 =overlap with Q
+		############################### [fig.13] End ##############################
+		fig_name = fig_name +  "FFT-angle-phi-0_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+		fig.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
+		print "\n Subplot saved as %s " %fig_name
+		del fig_name, data, norm_name 	# clear up memory
+		gc.collect() 
+		pypl.cla() ## clears axis ##
+		pypl.clf() ## clears figure ##
+
+
 	##################################################################################################################
 	##################################################################################################################
-	#-------------------------------- Fig.1 ACC: --------------------------------------------------------------------#
+	#---------------------- Fig.1 ACC Normed with Variance ( PHI=0 ): -----------------------------------------------#
 	##################################################################################################################
 	##################################################################################################################
 	print "\n Plotting ACC."
 	fig1 = pypl.figure('AC', figsize=(22,15))
-	#corrsum  =np.nan_to_num(corrsum)
 	sig = corrsum/corrsum[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	#sig = corrsum/corrsum[:,0][:,None] / corr_count
 	sig  =np.nan_to_num(sig)
 	#print "corrsum: ", corrsum[:,0][:,None] # = [[ 22.39735592] [  0.        ]...
 	#print "corr: ", corr[:,0][:,None]
 	#print "\n sig dim: ", sig.shape #carteesian = (1738, 1742): polar =(190, 5)
-
-	m = sig[:,padC:-padC].mean() 	# MEAN
-	s = sig[:,padC:-padC].std() 	# standard Deeviation
-	vmin = m-2*s
-	vmax = m+2*s
 	
-	ax = pypl.gca()
-	polar_axis = True 	## Plot with axis in polar coord and with polar labels, else pixels ##
-	if polar_axis:
-		im = ax.imshow( sig,
-                     extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
-                        vmin=vmin, vmax=vmax, aspect='auto')
-	else : im =ax.imshow(sig, vmin=vmin, vmax=vmax, aspect='auto' )
-	cb = pypl.colorbar(im, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)
-	cb.set_label(r'Auto-correlation of Intensity Difference [a.u.]',  size=12) # normed intensity
-	cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
-	cb.update_ticks()
+	fig_name = 'Diff-Auto-Corr'
+	plot_2std_to_file(fig=fig1, data=sig, norm_name='', fig_name=fig_name)
 
-	if polar_axis:
-		# #---- Adjust the X-axis: ----  		##
-		#xtic = ax.get_xticks()  	#[nphi/4, nphi/2, 3*nphi/4]
-		phi=2*np.pi  ## extent of sigma in angu;ar direction ##
-		xtic = [phi/4, phi/2, 3*phi/4]
-		xlab =[ r'$\pi/2$', r'$\pi$', r'$3\pi/2$'] #nphi_bins or phi_bins_5
-		ax.set_xticks(xtic), ax.set_xticklabels(xlab)
-
-		# #---- Adjust the Y-axis: ----
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_yticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "Dim q-bins: ", q_bins.shape[0], " max:", q_bins.max(), " min:", q_bins.min()
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		#print "q_label: ", q_label
-
-		ytic=ax.get_yticks() # = qrange_pix[q_bins] ## choose the equivalent q pixels from q_min-q_max
-		#ylab= q_label
-		ax.set_yticklabels(q_label)
-		ax.set_yticks(ytic)
-
-		# #---- Label xy-Axis: ----
-		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
-		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
-	pypl.gca().tick_params(labelsize=axis_fsize, length=9)
-	ave_corr_title = ax.set_title(r"Average of %d corrs [%s] with limits $\mu \pm 2\sigma$"%(corr_count, pttrn),  fontsize=sb_size)
-	ave_corr_title.set_y(1.08) # 1.1)
-	############################## [fig.] End ##############################
-	fig_name = "Diff-Auto-Corr_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	#pypl.show()
-	#pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	fig1.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Plot saved as %s " %fig_name
-	del fig_name 	# clear up memory1
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
+	#del sig
+	#gc.collect()
 
 	##################################################################################################################
 	##################################################################################################################
@@ -639,8 +852,6 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	##################################################################################################################
 	print "\n Plotting ACC Normalied wit ACC of the Mask."
 	fig2 = pypl.figure('AC_N_Msk', figsize=(22,15))
-	## ---- Normalize (avoide division with 0) ----- ##
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
 	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	## withtNomred 0th angle ##
 	## every q : row vise normalization with Mean of q : norm each q  bin by average of that q
@@ -649,61 +860,12 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	#print "corr: ", corr[:,0][:,None]
 	#print "\n sig dim: ", sig.shape 
 
-	#padC = 50#10#50 	# pad the edges of the correlation (remove self-correlation junk) /l.181
-	m = sig[:,padC:-padC].mean() 	# MEAN
-	s = sig[:,padC:-padC].std() 	# standard Deeviation
-	vmin = m-2*s
-	vmax = m+2*s
-	
-	ax = pypl.gca()
-	polar_axis = True 	## Plot with axis in polar coord and with polar labels, else pixels ##
-	if polar_axis:
-		im = ax.imshow( sig,
-                     extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
-                        vmin=vmin, vmax=vmax*frac, aspect='auto')
-	else : im =ax.imshow(sig, vmin=vmin, vmax=vmax*frac, aspect='auto' )
-	cb = pypl.colorbar(im, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)
-	cb.set_label(r'Auto-correlation of Intensity Difference [a.u.]',  size=12) # normed intensity
-	cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
-	cb.update_ticks()
+	fig_name="Diff-Auto-Corr_Normed_w_Mask"
+	norm_name = '(Normalized with Mask)'
+	plot_2std_to_file(fig=fig2, data=sig, norm_name=norm_name, fig_name=fig_name)
 
-	if polar_axis:
-		# #---- Adjust the X-axis: ----  		##
-		#xtic = ax.get_xticks()  	#[nphi/4, nphi/2, 3*nphi/4]
-		phi=2*np.pi  ## extent of sigma in angu;ar direction ##
-		xtic = [phi/4, phi/2, 3*phi/4]
-		xlab =[ r'$\pi/2$', r'$\pi$', r'$3\pi/2$'] #nphi_bins or phi_bins_5
-		ax.set_xticks(xtic), ax.set_xticklabels(xlab)
-
-		# #---- Adjust the Y-axis: ----
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_yticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "Dim q-bins: ", q_bins.shape[0], " max:", q_bins.max(), " min:", q_bins.min()
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		print "q_label: ", q_label
-
-		ytic=ax.get_yticks() # = qrange_pix[q_bins] ## choose the equivalent q pixels from q_min-q_max
-		#ylab= q_label
-		ax.set_yticklabels(q_label)
-		ax.set_yticks(ytic)
-
-		# #---- Label xy-Axis: ----
-		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
-		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
-	pypl.gca().tick_params(labelsize=axis_fsize, length=9)
-	Norm_ave_corr_title = ax.set_title(r"Average of %d corrs [%s] (Normalized with Mask) with limits $\mu \pm 2\sigma$"%(corr_count, pttrn),  fontsize=sb_size)
-	Norm_ave_corr_title.set_y(1.08) # 1.1)
-	############################## [fig.] End ##############################
-	fig_name = "Diff-Auto-Corr_Normed_w_Mask_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	#pypl.show()
-	#pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	fig2.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Plot saved as %s " %fig_name
-	del fig_name 	# clear up memory1
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
+	#del sig
+	#gc.collect()
 
 
 	##################################################################################################################
@@ -713,138 +875,47 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	##################################################################################################################
 	print "\n Plotting ACC Normalied wit ACC of the Mask."
 	fig3 = pypl.figure('AC_N_Qs_Msk', figsize=(22,15))
-	## ---- Normalize (avoide division with 0) ----- ##
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	#sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
-	qs_mean= np.asarray([	corrsum_m[i,:].mean() for i in range(corrsum_m.shape[0])	])  ## (Q,phi) where row: Q; columns: phi ##
-	# qs_mean = corrsum_m.mean(axis=0) ## Row-wise mean ##
-	print "\n Dim of Qs mean: ", qs_mean.shape
+
 	#sig = np.array([  corrsum[i,:]/qs_mean[i]    for i in range(corrsum.shape[0]) ])
-	sig_q = corrsum_m/qs_mean[:,None]/corr_count
-	sig  =np.nan_to_num(sig_q)
+	sig = corrsum_m/qs_mean[:,None]/corr_count
+	sig  =np.nan_to_num(sig)
 
-	#padC = 50#10#50 	# pad the edges of the correlation (remove self-correlation junk) /l.181
-	m = sig[:,padC:-padC].mean() 	# MEAN
-	s = sig[:,padC:-padC].std() 	# standard Deeviation
-	vmin = m-2*s
-	vmax = m+2*s
-	
-	ax = pypl.gca()
-	polar_axis = True 	## Plot with axis in polar coord and with polar labels, else pixels ##
-	if polar_axis:
-		im = ax.imshow( sig,
-                     extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
-                        vmin=vmin, vmax=vmax*frac, aspect='auto')
-	else : im =ax.imshow(sig, vmin=vmin, vmax=vmax*frac, aspect='auto' )
-	cb = pypl.colorbar(im, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)
-	cb.set_label(r'Auto-correlation of Intensity Difference [a.u.]',  size=12) # normed intensity
-	cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
-	cb.update_ticks()
+	fig_name = "Auto-Corr_Q-normed_Normed_w_Mask"
+	norm_name = '(Normalized with Mask and Q)'
+	plot_2std_to_file(fig=fig3, data=sig, norm_name=norm_name, fig_name=fig_name)
 
-	if polar_axis:
-		# #---- Adjust the X-axis: ----  		##
-		#xtic = ax.get_xticks()  	#[nphi/4, nphi/2, 3*nphi/4]
-		phi=2*np.pi  ## extent of sigma in angu;ar direction ##
-		xtic = [phi/4, phi/2, 3*phi/4]
-		xlab =[ r'$\pi/2$', r'$\pi$', r'$3\pi/2$'] #nphi_bins or phi_bins_5
-		ax.set_xticks(xtic), ax.set_xticklabels(xlab)
+	#del sig
+	#gc.collect()
 
-		# #---- Adjust the Y-axis: ----
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_yticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "Dim q-bins: ", q_bins.shape[0], " max:", q_bins.max(), " min:", q_bins.min()
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		print "q_label: ", q_label
 
-		ytic=ax.get_yticks() # = qrange_pix[q_bins] ## choose the equivalent q pixels from q_min-q_max
-		#ylab= q_label
-		ax.set_yticklabels(q_label)
-		ax.set_yticks(ytic)
-
-		# #---- Label xy-Axis: ----
-		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
-		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
-	pypl.gca().tick_params(labelsize=axis_fsize, length=9)
-	Norm_ave_corr_title = ax.set_title(r"Average of %d corrs [%s] (Normalized with Qs & Mask) with limits $\mu \pm 2\sigma$"%(corr_count, pttrn),  fontsize=sb_size)
-	Norm_ave_corr_title.set_y(1.08) # 1.1)
-	############################## [fig.] End ##############################
-	fig_name = "Auto-Corr_Q-normed_Normed_w_Mask_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	#pypl.show()
-	#pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	fig3.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Plot saved as %s " %fig_name
-	del fig_name 	# clear up memory1
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
 	##################################################################################################################
 	##################################################################################################################
 	#--------------------- Fig.4 ACC of the Mask: -----------------------------------------------#
 	##################################################################################################################
 	##################################################################################################################
 	print "\n Plotting ACC of the Mask."
-	fig4 = pypl.figure('AC_of_Msk', figsize=(22,15))
+	fig4A = pypl.figure('AC_of_Msk', figsize=(22,15))
 
 	sig_m = corr_mask/corr_mask[:,0][:,None]#/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	sig_m  =np.nan_to_num(sig_m)
 	#print "corrsum: ", corrsum[:,0][:,None] # = [[ 22.39735592] [  0.        ]...
+	fig_name="ACC_Mask"
+	mask_title = "AC of Mask with limits $\mu \pm 2\sigma$"
+	plot_2std_to_file(fig=fig4A, data=sig_m, norm_name='', fig_name=fig_name, title=mask_title)
 
-	#padC = 50#10#50 	# pad the edges of the correlation (remove self-correlation junk) /l.181
-	m = sig_m[:,padC:-padC].mean() 	# MEAN
-	s = sig_m[:,padC:-padC].std() 	# standard Deeviation
-	vmin = m-2*s
-	vmax = m+2*s
-	
-	ax = pypl.gca()
-	polar_axis = True 	## Plot with axis in polar coord and with polar labels, else pixels ##
-	if polar_axis:
-		im = ax.imshow( sig_m,
-                     extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
-                        vmin=vmin, vmax=vmax, aspect='auto')
-	else : im =ax.imshow(sig, vmin=vmin, vmax=vmax, aspect='auto' )
-	cb = pypl.colorbar(im, orientation="horizontal", shrink=cb_shrink, pad= cb_padd)
-	cb.set_label(r'Auto-correlation of Intensity Difference [a.u.]',  size=12) # normed intensity
-	cb.locator = ticker.MaxNLocator(nbins=5) # from matplotlib import ticker
-	cb.update_ticks()
+	#del sig_m
+	#gc.collect()
 
-	if polar_axis:
-		# #---- Adjust the X-axis: ----  		##
-		#xtic = ax.get_xticks()  	#[nphi/4, nphi/2, 3*nphi/4]
-		phi=2*np.pi  ## extent of sigma in angu;ar direction ##
-		xtic = [phi/4, phi/2, 3*phi/4]
-		xlab =[ r'$\pi/2$', r'$\pi$', r'$3\pi/2$'] #nphi_bins or phi_bins_5
-		ax.set_xticks(xtic), ax.set_xticklabels(xlab)
 
-		# #---- Adjust the Y-axis: ----
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_yticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "Dim q-bins: ", q_bins.shape[0], " max:", q_bins.max(), " min:", q_bins.min()
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		#print "q_label: ", q_label
+	fig4B = pypl.figure('CC_of_Msk', figsize=(22,15))
+	sig_m = mask_crosscor[0]/mask_crosscor[0][:,0][:,None]
+	sig_m  =np.nan_to_num(sig_m)
+	fig_name="CC_Mask"
+	mask_title = "CC of Mask with limits $\mu \pm 2\sigma$"
+	plot_2std_to_file(fig=fig4B, data=sig_m, norm_name='', fig_name=fig_name, title=mask_title)
 
-		ytic=ax.get_yticks() # = qrange_pix[q_bins] ## choose the equivalent q pixels from q_min-q_max
-		#ylab= q_label
-		ax.set_yticklabels(q_label)
-		ax.set_yticks(ytic)
-
-		# #---- Label xy-Axis: ----
-		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
-		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
-	pypl.gca().tick_params(labelsize=axis_fsize, length=9)
-	ACC_mask_title = ax.set_title(r"ACC of Mask with limits $\mu \pm 2\sigma$",  fontsize=sb_size)
-	ACC_mask_title.set_y(1.08) # 1.1)
-	############################## [fig.] End ##############################
-	fig_name = "ACC_Mask_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	#pypl.show()
-	#pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	fig4.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Plot saved as %s " %fig_name
-	del fig_name 	# clear up memory1
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
+	#del sig_m
+	#gc.collect()
 
 
 	##################################################################################################################
@@ -862,6 +933,7 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	#pypl.rcParams.update({'axes.labelsize': 16, 'xtick.labelsize':'x-large', 'ytick.labelsize':'x-large'})
 	## ax0.set( ylabel='y Pixels')
 	## ax0.set( xlabel='x Pixels')
+
 	# ---- Intensity Pattern : ---- #
 	if mask is not None:
 		Ip_ma_shot = np.ma.masked_where(mask == 0, np.log10(IP_mean)) ## look at the log10##
@@ -894,6 +966,7 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	fig5.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
 	print "\n Plot saved as %s " %fig_name
 	del fig_name 	# clear up memory1
+	gc.collect() 
 	pypl.cla() ## clears axis ##
 	pypl.clf() ## clears figure ##
 
@@ -905,10 +978,12 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 
 	fig6 = pypl.figure('AC_FFT_series', figsize=(22,15))
 	#sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count 
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
+	#corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
 	sig = corrsum_m/corr_count 
 	sig  =np.nan_to_num(sig)
 	sig_fft =  fftshift(fftn(sig))
+	del sig
+	gc.collect()
 
 	sig_fft_sets = [ np.real(sig_fft), np.imag(sig_fft) ]
 	#sig_fft_sets = [ np.real(sig_fft), np.imag(sig_fft), 
@@ -929,8 +1004,8 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 		polar_axis = False# True 	## Plot with axis in polar coord and with polar labels, else pixels ##
 		if polar_axis:
 			im = ax.imshow( sig_fft_sets[i],
-	                     extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
-	                        vmin=vmin, vmax=vmax*frac, aspect='auto')
+		                 extent=[0, 2*np.pi, qmax_pix, qmin_pix], 
+		                    vmin=vmin, vmax=vmax*frac, aspect='auto')
 		else : im =ax.imshow(sig_fft_sets[i], 
 						extent=[-sig_fft_sets[i].shape[1]/2,sig_fft_sets[i].shape[1]/2 , -sig_fft_sets[i].shape[0]/2, sig_fft_sets[i].shape[0]/2], 
 						 vmin=vmin, vmax=vmax*frac, aspect='auto' )
@@ -976,6 +1051,7 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	fig6.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
 	print "\n Subplot saved as %s " %fig_name
 	del fig_name 	# clear up memory
+	gc.collect() 
 	pypl.cla() ## clears axis ##
 	pypl.clf() ## clears figure ##
 
@@ -983,16 +1059,18 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 
 	##################################################################################################################
 	##################################################################################################################
-	#--------------------- Fig.7 FFTn{ACC}-rowvise (by Qs) of ACC Normalised with correlated Mask: ---------------------------------#
+	#------- Fig.7 FFTn{ACC}-rowvise (by Qs) of ACC Normalised with correlated Mask and variance: -------------------#
 	##################################################################################################################
 	##################################################################################################################
 
 	fig7 = pypl.figure('AC_FFT_by_row', figsize=(22,15))
 	## Fourier Coefficients: plot F-coefficients (q)  row by row {changes per row}, change  per row [0:th is the Radial Profile] 
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
+	#corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
 	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	sig  =np.nan_to_num(sig)
 	sig_fft =  fftn(sig)
+	del sig
+	gc.collect() 
 	## /usr/local/lib/python2.7/site-packages/numpy/core/numeric.py:538: ComplexWarning: Casting complex values to real discards the imaginary part
 	##		return array(a, dtype, copy=False, order=order)
 	sig_fft_R = np.real(sig_fft)	## The Real part ##
@@ -1018,10 +1096,10 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 			#pypl.plot(np.abs(np.transpose(sig_fft_R[0:21,:]), lw=2) 
 	else:	## or plot the true values ##
 		if subplots_phi_q:
-			for i in range(end_fcc):  ax_phi.plot(sig_fft_R[i,:],c=cmap(float(i)/end_fcc), lw=2, label='Row #%i' %i)
-			for i in range(end_fcc):  ax_q.plot(sig_fft_R[:,i], c=cmap(float(i)/end_fcc), lw=2, label='Column #%i' %i)
+			for i in range(end_fcc):  ax_phi.plot(sig_fft_R[i,:], c=cmap(float(i)/end_fcc),lw=2, label='Row #%i' %i)
+			for i in range(end_fcc):  ax_q.plot(sig_fft_R[:,i], c=cmap(float(i)/end_fcc),lw=2, label='Column #%i' %i)
 		else:
-			for i in range(end_fcc):  pypl.plot (sig_fft_R[i,:], c=cmap(float(i)/end_fcc), lw=2, label='Row #%i' %i)
+			for i in range(end_fcc):  pypl.plot (sig_fft_R[i,:],c=cmap(float(i)/end_fcc), lw=2, label='Row #%i' %i)
 	if subplots_phi_q: ax_phi.legend(); ax_q.legend()
 	else:	pypl.legend()
 	# if modulus:
@@ -1088,402 +1166,241 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 		if half_angle_int: version +="_half-half"
 	if subplots_phi_q:	version += "_fft_q"
 	fig_name = "FFT-byrow_(qx-%i_qi-%i_nphi-%i)_%s_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,version,frmt)
-	# if modulus:
-	# 	if half_angle_int:
-	# 		fig_name = "FFT-byrow_(qx-%i_qi-%i_nphi-%i)_%s_abs_lim-%.2f_half-half.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,ylim,frmt)	
-	# 	else:
-	# 		fig_name = "FFT-byrow_(qx-%i_qi-%i_nphi-%i)_%s_abs_lim-%.2f.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,ylim,frmt)	
-	# else:
-	# 	if half_angle_int:
-	# 		fig_name = "FFT-byrow_(qx-%i_qi-%i_nphi-%i)_%s_lim-%.2f_half.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,ylim,frmt)	
-	# 	else:
-	# 		fig_name = "FFT-byrow_(qx-%i_qi-%i_nphi-%i)_%s_lim-%.2f.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,ylim,frmt)
 	fig7.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
 	print "\n Subplot saved as %s " %fig_name
 	del fig_name 	# clear up memory
+	gc.collect() 
 	pypl.cla() ## clears axis ##
 	pypl.clf() ## clears figure ##
+
 
 	##################################################################################################################
 	##################################################################################################################
 	#---- Fig.8 FFT{ACC}(phi)-rowvise (by Qs) of ACC Normalised with correlated Mask and variance: ------------------#
+	
+	#---- Fig.9 FFT{ACC}(phi=0)-rowvise (by Qs) of ACC Normalised with correlated Mask and variance: ----------------#
 	##################################################################################################################
 	##################################################################################################################
 
-	fig8 = pypl.figure('AC_FFT_by_row_Nvar', figsize=(22,8))#(30,12))
+	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
+	sig  =np.nan_to_num(sig)	## (Qs, phis) = (200, 360) ##
+	print "\n Dim of <ACC> normed with mask: ", sig.shape
+	sig_Aft =  fft(sig, axis =1)
+	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
+	del sig
+	gc.collect()
+
+	## ---- Phi even-odd = [1,20]: ---- ##
+	fig8 = pypl.figure('AC_FFT_by_row_Nvar', figsize=(22,8))
+	fig_name = "Nrmd-var_FFT-angle-"
+	plot_even_odd(fig=fig8, data=sig_Aft, norm_name='and variance', fig_name=fig_name)
+	
+	## ---- Phi = [0]: ---- ##
+	fig9 = pypl.figure('AC_FFT_0_Nvar', figsize=(22,12))#(30,12)) ## width, height in inches ##
+	fig_name = 'Nrmd-var'
+	plot_radial_profile(fig=fig9, data=sig_Aft, norm_name='and var', fig_name=fig_name)
+
+	#del sig_Aft
+	#gc.collect()
+
+
+	##################################################################################################################
+	##################################################################################################################
+	#------- Fig.10 FFT{ACC}(phi)-rowvise (by Qs) of ACC Normalised with correlated Mask and Qs: --------------------#
+	
+	#------- Fig.11 FFT{ACC}(phi=0)-rowvise (by Qs) of ACC Normalised with correlated Mask and Qs: ------------------#
+	##################################################################################################################
+	##################################################################################################################
+
+	#sig = np.array([  corrsum[i,:]/qs_mean[i]    for i in range(corrsum.shape[0]) ])
+	sig_q = corrsum_m/qs_mean[:,None]/corr_count
+	sig  =np.nan_to_num(sig_q)	## (Qs, phis) = (200, 360) ##
+	print "\n Dim of <ACC> normed with mask: ", sig.shape
+	sig_Aft =  fft(sig, axis =1)
+	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
+	del sig, sig_q
+	gc.collect()
+
+	
+
+	## ---- Phi even-odd = [1,20]: ---- ##
+	fig10 = pypl.figure('AC_FFT_by_row_Nq', figsize=(22,8))
+	fig_name = "Nrmd-qs_FFT-angle-"
+	plot_even_odd(fig=fig10, data=sig_Aft, norm_name='and Q', fig_name=fig_name)
+	
+	## ---- Phi = [0]: ---- ##
+	fig11 = pypl.figure('AC_FFT_0_Nq', figsize=(22,12))#(30,12)), alt try (22,14)
+	fig_name = 'Nrmd-q'
+	plot_radial_profile(fig=fig11, data=sig_Aft, norm_name='and Q', fig_name=fig_name)
+
+	#del sig_Aft
+	#gc.collect()
+
+	##################################################################################################################
+	##################################################################################################################
+	#------ Fig.12 FFT{ACC}(phi)-rowvise (by Qs) of ACC Normalised with correlated Mask only: ----------------------#
+	
+	#------ Fig.13 FFT{ACC}(phi=0)-rowvise (by Qs) of ACC Normalised with correlated Mask only: ---------------------#
+	##################################################################################################################
+	##################################################################################################################
+ 
+	sig = corrsum_m/corr_count
+	sig  =np.nan_to_num(sig)	## (Qs, phis) = (200, 360) ##
+	print "\n Dim of <ACC> normed with mask: ", sig.shape
+	sig_Aft =  fft(sig, axis =1)
+	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
+	del sig
+	gc.collect()
+
+	## ---- Phi even-odd = [1,20]: ---- ##
+	fig12 = pypl.figure('AC_FFT_by_row_N', figsize=(22,8))
+	fig_name = "FFT-angle-"
+	plot_even_odd(fig=fig12, data=sig_Aft,norm_name='', fig_name=fig_name)
+
+	## ---- Phi = [0]: ---- ##
+	fig13 = pypl.figure('AC_FFT_0_N', figsize=(22,12))#(30,12)), (22,10) if not 2 rows in title
+	fig_name = ''
+	plot_radial_profile(fig=fig13, data=sig_Aft, norm_name='', fig_name=fig_name)
+	#del sig_Aft
+	#gc.collect()
+
+	##################################################################################################################
+	##################################################################################################################
+	#----------- Fig.14 FFT{CC}(phi=0)-rowvise (by Qs) of CC Normalised with correlated Mask only : ----------------#
+	
+	#----------- Fig.15 of CC Normalised with correlated Mask only & Mask and Variance: --------------------------#
+	##################################################################################################################
+	##################################################################################################################
+	
+	## plot/ analyse ' cross_corrsum (Nq,Nq,Nphi), mask_crosscor (1,Nq,Nphi),
+
+	sig_cc = cross_sum_m/corr_count 
+	sig_cc  =np.nan_to_num(sig_cc)	## (Qs, phis) = (200, 360) ##
+	print "\n Dim of <CC> normed with mask: ", sig_cc.shape
 	## Fourier Coefficients: plot F-coefficients (q)  row by row {changes per row}, change  per row [0:th is the Radial Profile] 
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
-	sig  =np.nan_to_num(sig)	## (Qs, phis) = (200, 360) ##
-	print "\n Dim of <ACC> normed with mask: ", sig.shape
-	sig_Aft =  fft(sig, axis =1)
-	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
-	## ---- Phi = 0 : ---- ##
-	#pypl.plot(sig_Aft[:,0].real, lw=2, label='Angle $ \phi=0 $')
-	#pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(corr_count, pttrn),  fontsize=sb_size)
+	sig_cc_Aft =  fft(sig_cc, axis =-1)	## the last axis is the angles ##
+	del sig_cc
+	gc.collect()
+	print "\n Dim of C-Angular FFT: ", sig_cc_Aft.shape #  ##
+
+
+	fig14 = pypl.figure('AC_FFT_0_N', figsize=(22,12))#(30,12)), (22,10) if not 2 rows in title
+	fig_name = 'CC'
+	plot_radial_profile(fig=fig14, data=sig_cc_Aft, norm_name='', fig_name=fig_name)
+
+	fig15 = pypl.figure('CC_FFT_by_row_N', figsize=(22,8))#(30,12))
+	fig_name = "CC-FFT-angle-"
+	plot_even_odd(fig=fig15 , data=sig_cc_Aft, norm_name='',  fig_name=fig_name)
+	#del sig_cc_Aft
+	#gc.collect()
+
+	##################################################################################################################
+	##################################################################################################################
+	#------------------ Fig.16 of CC Normalised with correlated  Mask and Variance: ---------------------------------#
+	##################################################################################################################
+	##################################################################################################################
 	
-	even_odd_plot = True
+	fig16 = pypl.figure('CC_FFT_by_row_Nvar', figsize=(22,8))#(30,12))
+	sig_cc_var = cross_sum_m/cross_sum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
+	sig_cc_var  =np.nan_to_num(sig_cc_var)	## (Qs, phis) = (200, 360) ##
+	print "\n Dim of <CC> normed with mask: ", sig_cc_var.shape
+	## Fourier Coefficients: plot F-coefficients (q)  row by row {changes per row}, change  per row [0:th is the Radial Profile] 
+	sig_cc_var_Aft =  fft(sig_cc_var, axis =-1)	## the last axis is the angles ##	#print "\n Dim of C-Angular FFT: ", sig_cc_Aft.shape # = ( ##
+	del sig_cc_var
+	gc.collect()
+	fig_name = "CC-Nrmd-var_FFT-angle-"
+	plot_even_odd(fig=fig16, data=sig_cc_var_Aft, norm_name='and variance', fig_name=fig_name)
+	#del sig_cc_var_Aft
+	#gc.collect()
 
-	## ---- Phi = [1,20]: ---- ##
-	if not even_odd_plot:
-		##pypl.plot(sig_Aft[:,1].real, lw=2, label='Angle $ \phi=1 $')
-		lim=21#13
-		cmap = pypl.get_cmap('jet')
-		for i in range(1,lim):  pypl.plot(sig_Aft[:,i], c=cmap(float(i)/lim), lw=2, label='n $ \phi=%i $' %i)
-		#pypl.legend()
-		#---- Adjust the X-axis: ---- ##
-		ax = pypl.gca()
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		ytic=ax.get_xticks() 
-		pypl.xticks(q_bins,q_label)#ax.set_xticklabels(q_label), ax.set_xticks(ytic)
-		ax.set_xlabel(r'q', fontsize = axis_fsize)
-
-	## ---- Phi even-odd = [1,20]: ---- ##
-	if even_odd_plot:
-		lim=21#13 	## 51 is too many !
-		ax_even=fig8.add_subplot(121)
-		ax_odd=fig8.add_subplot(122, sharex=ax_even, sharey=ax_even)
-		pypl.subplots_adjust(wspace=0.2, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
-		#cmap = pypl.get_cmap('jet')
-		for i in range(1,lim):  
-			color = cmap(float(i)/lim)
-			if i % 2 == 0:		## only even i:s ##
-				ax_even.plot(sig_Aft[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
-				ax_even.set_title("even n:s")
-				ax_even.legend()
-				q_bins = np.linspace(0, (q_map.shape[0]-1), num= ax_even.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
-				q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-				ax_even.set_xticklabels(q_label), ax_even.set_xticks(q_bins)
-				ax_even.set_xlabel(r'q', fontsize = axis_fsize)
-
-			else:				## only odd ##
-				ax_odd.plot(sig_Aft[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
-				ax_odd.set_title("odd n:s")
-				ax_odd.legend()
-				ax_odd.set_xticklabels(ax_even.get_xticklabels()), ax_odd.set_xticks(ax_even.get_xticks())
-				ax_odd.set_xlabel(r'q', fontsize = axis_fsize)
-		pypl.subplots_adjust(wspace=0.3, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
-			############################### [fig.] End ##############################
-	#pypl.title('Re{FFT} $\phi [1,%i] $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(lim,corr_count, pttrn),  fontsize=sb_size)
-	pypl.suptitle("Re{FFT} $\phi [1,%i]$ of Average of %d corrs [%s] \n (Normalized with Mask and variance)"%(lim,corr_count, pttrn),  fontsize=sb_size)
-	# #pypl.subplots_adjust(wspace=0.3, left=0.08, right=0.95, top=0.85, bottom=0.15)
-	#pypl.show()
-	fig_name = "Nrmd-var_FFT-angle-phi-1-%i_evenodd_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(lim,qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	fig8.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Subplot saved as %s " %fig_name
-	del fig_name 	# clear up memory
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
 
 	##################################################################################################################
-	##################################################################################################################
-	#---- Fig.9 FFT{ACC}(phi)-rowvise (by Qs) of ACC Normalised with correlated Mask and Qs: ------------------#
-	##################################################################################################################
-	##################################################################################################################
-
-	fig9 = pypl.figure('AC_FFT_by_row_Nq', figsize=(22,8))#(30,12))
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	#sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
-	qs_mean= np.asarray([	corrsum_m[i,:].mean() for i in range(corrsum_m.shape[0])	])  ## (Q,phi) where row: Q; columns: phi ##
-	# qs_mean = corrsum_m.mean(axis=0) ## Row-wise mean ##
-	print "\n Dim of Qs mean: ", qs_mean.shape
-	#sig = np.array([  corrsum[i,:]/qs_mean[i]    for i in range(corrsum.shape[0]) ])
-	sig_q = corrsum_m/qs_mean[:,None]/corr_count
-	sig  =np.nan_to_num(sig_q)	## (Qs, phis) = (200, 360) ##
-	print "\n Dim of <ACC> normed with mask: ", sig.shape
-	sig_Aft =  fft(sig, axis =1)
-	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
-	## ---- Phi = 0 : ---- ##
-	#pypl.plot(sig_Aft[:,0].real, lw=2, label='Angle $ \phi=0 $')
-	#pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(corr_count, pttrn),  fontsize=sb_size)
-	
-	even_odd_plot = True
-
-	## ---- Phi = [1,20]: ---- ##
-	if not even_odd_plot:
-		##pypl.plot(sig_Aft[:,1].real, lw=2, label='Angle $ \phi=1 $')
-		lim=21#13
-		cmap = pypl.get_cmap('jet')
-		for i in range(1,lim):  pypl.plot(sig_Aft[:,i], c=cmap(float(i)/lim), lw=2, label='n $ \phi=%i $' %i)
-		#pypl.legend()
-		#---- Adjust the X-axis: ---- ##
-		ax = pypl.gca()
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		ytic=ax.get_xticks() 
-		pypl.xticks(q_bins,q_label)#ax.set_xticklabels(q_label), ax.set_xticks(ytic)
-		ax.set_xlabel(r'q', fontsize = axis_fsize)
-
-	## ---- Phi even-odd = [1,20]: ---- ##
-	if even_odd_plot:
-		lim=21#13 	## 51 is too many !
-		ax_even=fig9.add_subplot(121)
-		ax_odd=fig9.add_subplot(122, sharex=ax_even, sharey=ax_even)
-		pypl.subplots_adjust(wspace=0.2, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
-		#cmap = pypl.get_cmap('jet')
-		for i in range(1,lim):  
-			color = cmap(float(i)/lim)
-			if i % 2 == 0:		## only even i:s ##
-				ax_even.plot(sig_Aft[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
-				ax_even.set_title("even n:s")
-				ax_even.legend()
-				q_bins = np.linspace(0, (q_map.shape[0]-1), num= ax_even.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
-				q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-				ax_even.set_xticklabels(q_label), ax_even.set_xticks(q_bins)
-				ax_even.set_xlabel(r'q', fontsize = axis_fsize)
-
-			else:				## only odd ##
-				ax_odd.plot(sig_Aft[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
-				ax_odd.set_title("odd n:s")
-				ax_odd.legend()
-				ax_odd.set_xticklabels(ax_even.get_xticklabels()), ax_odd.set_xticks(ax_even.get_xticks())
-				ax_odd.set_xlabel(r'q', fontsize = axis_fsize)
-		pypl.subplots_adjust(wspace=0.3, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
-			############################### [fig.] End ##############################
-	#pypl.title('Re{FFT} $\phi [1,%i] $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(lim,corr_count, pttrn),  fontsize=sb_size)
-	pypl.suptitle("Re{FFT} $\phi [1,%i]$ of Average of %d corrs [%s] \n (Normalized with Mask and Qs)"%(lim,corr_count, pttrn),  fontsize=sb_size)
-	# #pypl.subplots_adjust(wspace=0.3, left=0.08, right=0.95, top=0.85, bottom=0.15)
-	#pypl.show()
-	fig_name = "Nrmd-qs_FFT-angle-phi-1-%i_evenodd_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(lim,qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	fig9.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Subplot saved as %s " %fig_name
-	del fig_name 	# clear up memory
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
-
+	#---------------- Fig.17 COSINUS(psi) of ACC Normalised with correlated Mask & variance: -------------------------#
 	##################################################################################################################
 	##################################################################################################################
-	#---- Fig.10 FFT{ACC}(phi)-rowvise (by Qs) of ACC Normalised with correlated Mask only: ------------------#
-	##################################################################################################################
-	##################################################################################################################
+	fig17 = pypl.figure('cos-psi', figsize=(14,8)) ## in e.g. plt.figure(figsize=(12,6))
+	cmap = pypl.get_cmap('jet')
+	include_mean = True
+	plot_multiple_pixels = False #True
+	## Fourier Coefficients: plot F-coefficients (q)  row by row {changes per row}, change  per row [0:th is the Radial Profile] 
+	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #normed with variance
+	sig  =np.nan_to_num(sig)
 
-	fig10 = pypl.figure('AC_FFT_by_row_N', figsize=(22,8))#(30,12))
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	#sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
-	#qs_mean= np.asarray([	corrsum_m[i,:].mean() for i in range(corrsum_m.shape[0])	])  ## (Q,phi) where row: Q; columns: phi ##
-	# qs_mean = corrsum_m.mean(axis=0) ## Row-wise mean ##
-	#print "\n Dim of Qs mean: ", qs_mean.shape
-	#sig = np.array([  corrsum[i,:]/qs_mean[i]    for i in range(corrsum.shape[0]) ])
-	sig = corrsum_m/corr_count
-	sig  =np.nan_to_num(sig)	## (Qs, phis) = (200, 360) ##
-	print "\n Dim of <ACC> normed with mask: ", sig.shape
-	sig_Aft =  fft(sig, axis =1)
-	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
-	## ---- Phi = 0 : ---- ##
-	#pypl.plot(sig_Aft[:,0].real, lw=2, label='Angle $ \phi=0 $')
-	#pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(corr_count, pttrn),  fontsize=sb_size)
-	
-	even_odd_plot = True
+	## ----- For scirpt with parser arguments ----- ##
+	#parser.add_argument('-bins', dest='bins',
+	#	type=float,default=None,
+	#	help='Number of radial bins to average over (should be odd number)')
+	# parser.add_argument('-Q', dest='Q',type=float, default=None,
+	#     help='Which reciprocal space coordinate to look at')
+	# parser.add_argument('-R', dest='R', type=float,default=None,
+	#     help='Which radial pixel to look at')
+	#if Q is not None:
+	#	r_pixel = np.argmin( np.abs( qs - Q) ) ## "Returns the indices of the minimum values along an axis"
+	#else:
+	#	assert( R is not None)
+	#	r_pixel = np.argmin( np.abs( radii-R) )
+	#	Q = qs[idx]
 
-	## ---- Phi = [1,20]: ---- ##
-	if not even_odd_plot:
-		##pypl.plot(sig_Aft[:,1].real, lw=2, label='Angle $ \phi=1 $')
-		lim=21#13
-		cmap = pypl.get_cmap('jet')
-		for i in range(1,lim):  pypl.plot(sig_Aft[:,i].real, c=cmap(float(i)/lim), lw=2, label='n $ \phi=%i $' %i)
-		#pypl.legend()
-		#---- Adjust the X-axis: ---- ##
-		ax = pypl.gca()
-		nq = q_map.shape[0]-1#q_step 	# Number of q radial polar bins, where q_map is an array q_min-q_max
-		#print "q-map : ", q_map
-		q_bins = np.linspace(0, nq, num= ax.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
-		#print "q-bins array: ", q_bins, "/n Dim q-bins ", q_bins.shape
-		q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-		ytic=ax.get_xticks() 
-		pypl.xticks(q_bins,q_label)#ax.set_xticklabels(q_label), ax.set_xticks(ytic)
-		ax.set_xlabel(r'q', fontsize = axis_fsize)
+	## Experimental Parameters are included in v.5: dtc_dist_m,wl_A,ps_m,be_eV  ##
+	th = np.arctan(radii*ps_m/dtc_dist_m)*0.5 	## th(radii) ##
+	qs =4*np.pi*np.sin(th)/wl_A 			## qs(th) ##
+	phis = np.arange( sig.shape[1] )*2*np.pi/sig.shape[1] 		## sig.shape[1] = the number of angles ##
+	#print"\n Dim of 'theta': ", th.shape
+	#print"\n Dim of 'qs': ", qs.shape
 
-	## ---- Phi even-odd = [1,20]: ---- ##
-	if even_odd_plot:
-		lim=21#13 	## 51 is too many !
-		ax_even=fig10.add_subplot(121)
-		ax_odd=fig10.add_subplot(122, sharex=ax_even, sharey=ax_even)
-		pypl.subplots_adjust(wspace=0.2, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
-		#cmap = pypl.get_cmap('jet')
-		for i in range(1,lim):  
-			color = cmap(float(i)/lim)
-			if i % 2 == 0:		## only even i:s ##
-				ax_even.plot(sig_Aft[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
-				ax_even.set_title("even n:s")
-				ax_even.legend() #frameon=False
-				q_bins = np.linspace(0, (q_map.shape[0]-1), num= ax_even.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
-				q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-				ax_even.set_xticklabels(q_label), ax_even.set_xticks(q_bins)
-				ax_even.set_xlabel(r'q', fontsize = axis_fsize)
-
-			else:				## only odd ##
-				ax_odd.plot(sig_Aft[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
-				ax_odd.set_title("odd n:s")
-				ax_odd.legend()
-				ax_odd.set_xticklabels(ax_even.get_xticklabels()), ax_odd.set_xticks(ax_even.get_xticks())
-				ax_odd.set_xlabel(r'q', fontsize = axis_fsize)
-		pypl.subplots_adjust(wspace=0.3, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
-		############################### [fig.] End ##############################
-	#pypl.title('Re{FFT} $\phi [1,%i] $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(lim,corr_count, pttrn),  fontsize=sb_size)
-	pypl.suptitle("Re{FFT} $\phi [1,%i]$ of Average of %d corrs [%s] \n (Normalized with Mask)"%(lim,corr_count, pttrn),  fontsize=sb_size)
-	# #pypl.subplots_adjust(wspace=0.3, left=0.08, right=0.95, top=0.85, bottom=0.15)
-	#pypl.show()
-	fig_name = "FFT-angle-phi-1-%i_evenodd_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(lim,qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	fig10.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Subplot saved as %s " %fig_name
-	del fig_name 	# clear up memory
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
-
-	##################################################################################################################
-	##################################################################################################################
-	#---- Fig.11 FFT{ACC}(phi=0)-rowvise (by Qs) of ACC Normalised with correlated Mask and variance: ------------------#
-	##################################################################################################################
-	##################################################################################################################
-
-	fig11 = pypl.figure('AC_FFT_0_Nvar', figsize=(20,14))#(30,12)) ## width, height in inches ##
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
-	sig  =np.nan_to_num(sig)	## (Qs, phis) = (200, 360) ##
-	print "\n Dim of <ACC> normed with mask: ", sig.shape
-	sig_Aft =  fft(sig, axis =1) ## FFT along phi ##
-	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
-	
-	## ---- Phi = 0 : ---- ##
-	#pypl.plot(sig_Aft[:,0].real, lw=2, label='Angle $ \phi=0 $')
-
-	## ---- Bottom x-Axis: ---- ##
-	ax_bttm = pypl.gca()
-	ax_bttm.set_xlabel("r [pixels]", fontsize=axis_fsize, labelpad=l_pad) ## for Bottom-Axis in r [pixels] ##
-	## ---- Phi = 0 : ---- ##
-	ax_bttm.plot(q_map[:-1,2],sig_Aft[:,0].real, lw=2)
-	ax_bttm.set_ylabel("Radial Intensity (ADU)", fontsize=axis_fsize)
-
-	qp_bins = np.linspace(0, q_map.shape[0], endpoint=False, num= ax_bttm.get_xticks().shape[0], dtype=int) #  endpoint=True,
-	print "x-bins:",qp_bins
-	qp_label = [ '%i'%(q_map[x,2]) for x in qp_bins] 	## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-	ax_bttm.set_xticks(q_map[qp_bins,2])	## ? ticks in wrong place, 300-800 in pixles ##
-	ax_bttm.set_xticklabels(qp_label)
-	ax_bttm.grid(True)
-	
-	## ---- Top x-Axis: ---- ##
-	ax_top = ax_bttm.twiny()  ## Top Axis, Share the same y Axis ##	
-	ax_top.set_xlabel("Q $(\AA^{-1})$", fontsize=axis_fsize, labelpad=l_pad)  ## for Top-Axis in q [inv Angstrom] ##	
-	qA_label = [ '%.3f'%(q_map[x,1]) for x in qp_bins] ## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-	ax_top.set_xticks(ax_bttm.get_xticks())
-	ax_top.set_xticklabels(qA_label)
-	ax_top.set_xbound(ax_bttm.get_xbound())
+	#rs = np.linspace(r_pixel-50,r_pixel+50, num=100)
+	rs = np.arange(r_pixel-50,r_pixel+51, step=10, dtype=int)
+	print "Dim of radial selection of pixels 'rs': ", rs.shape
+	rs_length = rs.shape[0]
+	i=0
+	Q_idx=[]
+	if plot_multiple_pixels:
+		for R in rs:
+			idx = np.argmin( np.abs(   radii-R  ) )
+			cos_psi = np.cos( phis ) * np.cos( th[idx] )**2 + np.sin( th[idx] )**2
+			## c=cmap(float(i)/end_fcc),
+			
+			pypl.plot(cos_psi, sig[idx],  c=cmap(float(i)/rs_length),lw= 2, label='pixel=%d'%radii[idx])
+			i +=1 	## Counter for the colours ##
+			Q_idx.append(idx) 	## the indices plotted, stored for printing Qs later ##
+			#pypl.title("Correlation at Q=%.3f $\AA^{-1}$ (R=%d pixels)" % (Q, R), fontsize=18)
+			pypl.title("Correlation at Q=%.3f - %.3f $\AA^{-1}$ (R=%d - %d pixels)" % ( qs[Q_idx[0]],qs[Q_idx[-1]],rs[0],rs[-1]), fontsize=18)
+			#pypl.title("Correlation at Q=%.3f - %.3f $\AA^{-1}$ (R=%d - %d pixels)" % ( q_map[Q_idx[0],1],q_map[Q_idx[-1],1],q_map[Q_idx[0],2],q_map[Q_idx[-1],2]), fontsize=18)
+		plt_bins='multi'
+	else:
+		idx = np.argmin( np.abs(   radii-r_pixel  ) )
+		cos_psi = np.cos( phis ) * np.cos( th[idx] )**2 + np.sin( th[idx] )**2
+		pypl.plot(cos_psi, sig[idx], 'b',lw= 2, label='pixel=%d'%r_pixel)
+		pypl.title("Correlation at Q=%.3f  $\AA^{-1}$ (R=%d  pixels)" % ( qs[idx],r_pixel), fontsize=18)
+		plt_bins='single'
+	if include_mean:
+		bins=rs.shape[0]
+		cos_psi_r_pixel = np.cos( phis ) * np.cos( th[r_pixel] )**2 + np.sin( th[r_pixel] )**2
+		pypl.plot( cos_psi, sig[r_pixel-np.int(bins/2):r_pixel+np.int(bins/2)+1].mean(axis=0), 'k', linestyle='dashed', lw= 3, label='mean of pixel %d - %d'%(rs[0],rs[-1]) )
+	#pypl.xlim(right=0.994)
+	#pypl.ylim(top=0.0057)
+	#pypl.ylim(sig[idx].min()-0.01*sig[idx].min(),sig[idx].mean()+0.01*sig[idx].mean())
+	std= sig[idx].std()
+	mu= sig[idx].mean()
+	#pypl.ylim(mu-0.25*std, mu+0.01*std)#(mu-0.25*std, mu+0.25*std)#(mu-2*std, mu+2*std)
+	pypl.ylim(mu-0.3*std, mu+0.01*std)#(mu-0.25*std, mu+0.25*std)#(mu-2*std, mu+2*std)
 
 
-	#qp_bins = np.linspace(0, q_map.shape[0], endpoint=False, num= ax_bttm.get_xticks().shape[0], dtype=int) #  endpoint=True,
-	#qp_label = [ '%i'%(q_map[x,2]) for x in qp_bins] 	## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-	## alt ? #
-	#qp_label = [ '%i'%(q_map[int(x),2]) for ind,x in enumerate(ax_bttm.get_xticks())]
-	#ax_bttm.set_xticklabels(qp_label)
-	
-	# ## ---- Top x-Axis: ---- ##
-	# ax_top = ax_bttm.twiny()  ## Top Axis, Share the same y Axis ##	
-	# ax_top.set_xlabel("Q $(\AA^{-1})$", fontsize=axis_fsize, labelpad=l_pad)  ## for Top-Axis in q [inv Angstrom] ##	
-	# #ax_top.plot(q_map[:-1,1],sig_Aft[:,0].real, lw=2) ## plot shifted along with data-point, but not at ends! ##
-	# qp_bins = np.linspace(0, q_map.shape[0], endpoint=False, num= 1+(qmax_pix-qmin_pix)/100, dtype=int) #  endpoint=True,
-	# ax_top.set_xticks(qp_bins)
-	# ax_top.set_xbound(q_map[0,1], q_map[-1,1])
-	# qA_label = [ '%.3f'%(q_map[x,1]) for x in qp_bins] ## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-	# #qA_label = [ '%.3f'%(q_map[int(x),1]) for ind,x in enumerate(ax_bttm.get_xticks())] # index 600 is out of bounds for axis 0 with size 501
-	# #ax_top.set_xticks(ax_bttm.get_xticks())
-	# ax_top.set_xticklabels(qA_label)
-	# #ax_top.set_xbound(ax_bttm.get_xbound())
-
+	pypl.xlabel(r"$\cos \,\psi$", fontsize=18)
+	#pypl.gca().tick_params(labelsize=15, length=9)
 	pypl.gca().tick_params(labelsize=tick_fsize, length=9)
+	pypl.legend(loc=0) ## 2= úpper left, 0='best0
+	pypl.show()
 
-	main_title=pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask & variance)'%(corr_count, pttrn),  fontsize=sb_size)
-	main_title.set_y(1.1) # 1.1), 1.08 OK but a bit low, 1.04 =overlap with Q
-	############################### [fig.11] End ##############################
-	fig_name = "Nrmd-var_FFT-angle-0_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	fig11.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
+	############################## [fig.17] End ##############################
+	#pypl.suptitle("$\cos(\psi)$ around R=%d of Average of %d corrs [%s] \n (Normalized with Mask) with limits %.2f"%(R, corr_count, pttrn),  fontsize=sb_size)
+	# #pypl.subplots_adjust(wspace=0.3, left=0.08, right=0.95, top=0.85, bottom=0.15)
+	
+	fig_name = "cos-psi_R-%d__(qx-%i_qi-%i_nphi-%i)_%s.%s" %(r_pixel,plt_bins,qmax_pix,qmin_pix, nphi,pttrn,frmt)
+	fig17.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
 	print "\n Subplot saved as %s " %fig_name
-	del fig_name 	# clear up memory
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
-
-	##################################################################################################################
-	##################################################################################################################
-	#---- Fig.12 FFT{ACC}(phi=0)-rowvise (by Qs) of ACC Normalised with correlated Mask and Qs: ------------------#
-	##################################################################################################################
-	##################################################################################################################
-
-	fig12 = pypl.figure('AC_FFT_0_Nq', figsize=(22,8))#(30,12))
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	qs_mean= np.asarray([	corrsum_m[i,:].mean() for i in range(corrsum_m.shape[0])	])  ## (Q,phi) where row: Q; columns: phi ##
-	# qs_mean = corrsum_m.mean(axis=0) ## Row-wise mean ##
-	print "\n Dim of Qs mean: ", qs_mean.shape
-	#sig = np.array([  corrsum[i,:]/qs_mean[i]    for i in range(corrsum.shape[0]) ])
-	sig_q = corrsum_m/qs_mean[:,None]/corr_count
-	sig  =np.nan_to_num(sig_q)	## (Qs, phis) = (200, 360) ##
-	print "\n Dim of <ACC> normed with mask: ", sig.shape
-	sig_Aft =  fft(sig, axis =1) ## FFT along phi ##
-	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
-	
-	## ---- Phi = 0 : ---- ##
-	pypl.plot(sig_Aft[:,0].real, lw=2, label='Angle $ \phi=0 $')
-	pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask and q)'%(corr_count, pttrn),  fontsize=sb_size)
-	############################### [fig.12] End ##############################
-	fig_name = "Nrmd-qs_FFT-angle-0_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	fig12.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Subplot saved as %s " %fig_name
-	del fig_name 	# clear up memory
-	pypl.cla() ## clears axis ##
-	pypl.clf() ## clears figure ##
-
-	##################################################################################################################
-	##################################################################################################################
-	#---- Fig.13 FFT{ACC}(phi=0)-rowvise (by Qs) of ACC Normalised with correlated Mask only: ------------------#
-	##################################################################################################################
-	##################################################################################################################
-	fig13 = pypl.figure('AC_FFT_0_N', figsize=(22,10))#(30,12))
-	corrsum_m = np.divide(corrsum, corr_mask, out=None, where=corr_mask!=0) ##corrsum /= corr_mask but not where corr_mask = 0  ##
-	sig = corrsum_m/corr_count
-	sig  =np.nan_to_num(sig)	## (Qs, phis) = (200, 360) ##
-	print "\n Dim of <ACC> normed with mask: ", sig.shape
-	sig_Aft =  fft(sig, axis =1) ## FFT along phi ##
-	print "\n Dim of Angular FFT: ", sig_Aft.shape # = (200, 360) ##
-	
-	## ---- Phi = 0 : ---- ##
-	#pypl.plot(sig_Aft[:,0].real, lw=2, label='Angle $ \phi=0 $')
-	#pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(corr_count, pttrn),  fontsize=sb_size)
-	
-	## ---- Bottom x-Axis: ---- ##
-	ax_bttm = pypl.gca()
-	ax_bttm.set_xlabel("r [pixels]", fontsize=axis_fsize, labelpad=l_pad) ## for Bottom-Axis in r [pixels] ##
-	## ---- Phi = 0 : ---- ##
-	ax_bttm.plot(sig_Aft[:,0].real, lw=2)
-	ax_bttm.set_ylabel("Radial Intensity (ADU)", fontsize=axis_fsize)
-
-	qp_bins = np.linspace(0, q_map.shape[0], endpoint=False, num= ax_bttm.get_xticks().shape[0], dtype=int) #  endpoint=True,
-	qp_label = [ '%i'%(q_map[x,2]) for x in qp_bins] 	## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-	ax_bttm.set_xticks(qp_bins)	## ? ticks in wrong place, 300-800 in pixles ## bins as index along the array of sig_Aft[:,0].real
-	ax_bttm.set_xticklabels(qp_label)
-	ax_bttm.grid(True)
-	
-	## ---- Top x-Axis: ---- ##
-	ax_top = ax_bttm.twiny()  ## Top Axis, Share the same y Axis ##	
-	ax_top.set_xlabel("Q $(\AA^{-1})$", fontsize=axis_fsize, labelpad=l_pad)  ## for Top-Axis in q [inv Angstrom] ##	
-	qA_label = [ '%.3f'%(q_map[x,1]) for x in qp_bins] ## Columns 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
-	ax_top.set_xticks(ax_bttm.get_xticks())
-	ax_top.set_xticklabels(qA_label)
-	ax_top.set_xbound(ax_bttm.get_xbound())
-	pypl.gca().tick_params(labelsize=tick_fsize, length=9)
-
-	#main_title=pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] \n(Normalized with Mask)'%(corr_count, pttrn),  fontsize=sb_size)
-	main_title=pypl.title('Re{FFT} $\phi = 0 $ of Average of %d corrs [%s] (Normalized with Mask)'%(corr_count, pttrn),  fontsize=sb_size)
-	main_title.set_y(1.1) # 1.1), 1.08 OK but a bit low, 1.04 =overlap with Q
-	############################### [fig.13] End ##############################
-	fig_name = "FFT-angle-phi-0_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
-	fig13.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
-	print "\n Subplot saved as %s " %fig_name
-	del fig_name 	# clear up memory
+	del fig_name, sig 	# clear up memory
+	gc.collect() 
 	pypl.cla() ## clears axis ##
 	pypl.clf() ## clears figure ##
 # -------------------------------------- 
@@ -1694,6 +1611,7 @@ def subplot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_
 	print "\n Subplot saved as %s " %fig_name
 	print "\n Subplot saved in %s " %(out_fname+fig_name)
 	del fig_name 	# clear up memory1
+	gc.collect() 
 	pypl.cla() ## clears axis ##
 	pypl.clf() ## clears figure ##
 
@@ -1782,7 +1700,8 @@ def load_and_calculate_from_cxi(args):
 	#ACC_wo_MASK = not bool(args.w_MASK)  			## if True: Calculate tha ACC without the Mask ##
 	#if not ACC_wo_MASK: 	shots *= mask_better ## Add the MASK, else if ÁCC_wo_MASK =True do not  implement the mask ##
 	if bool(args.w_MASK):  	shots *= mask_better ## Add the MASK ##
-	calc_acc(img=shots, cntr=cntr, q_map= q_mapping, mask = mask_better, data_hdf=out_hdf)
+	calc_ac_and_cc(img=shots, cntr=cntr, q_map= q_mapping, mask = mask_better, data_hdf=out_hdf, 
+				beam_eV=photon_e_eV, wavelength_A=wl_A, pixel_size_m=ps*1E-6, detector_distance_m=dtc_dist)
 
 ##################################################################################################################
 #------------------------------ Mean and Plot ['plots']: --------------------------------------------------------#
@@ -1800,6 +1719,11 @@ def load_and_plot_from_hdf5(args):
 	fnames = sorted(fnames, 
 		key=lambda x: int(x.split('84-')[-1][6:].split('_(')[0] )) 	## For sorting simulated-file 0-90 ##
 	#fnames = sorted(fnames, key=lambda x: int(x.split('84-')[-1][4:].split('_ed')[0][0] )) 	## For sorting conc 4-6 M ##
+
+	# ######################  !! OBS !!  ###################### 
+	# ## OBS! Memory limit on Cluster: max 60 GB, file size approx 849 Mb => only load 60 of 91 files
+	# fnames = fnames[:60]
+	# ######################  !! OBS !!  ###################### 
 
 	# ----- Parameters unique to Simulation: ---- ##
 	cncntr_start = fnames[0].split('84-')[-1][4:].split('_(')[0] 	## '...84-105_6M90_ed...'=> '6M90' ##
@@ -1839,17 +1763,17 @@ parser = argparse.ArgumentParser(description="Analyse Simulated Diffraction Patt
 
 parser.add_argument('-o', '--outpath', dest='outpath', default='this_dir', type=str, help="Path for output, Plots and Data-files")
 
-parser.add_argument('-q', '--q-range', dest='q_range', nargs=2, default="0 850", type=int, 
-      help="The Pixel range to caluate polar images and their correlations. Default is '0 850'.") ##type=float)
-
 subparsers = parser.add_subparsers()#title='calculate', help='commands for calculations help')
 
+## ---- For Calculating the ACC of sile #X and storing in separat hdf5-file: -----##
 subparsers_calc = subparsers.add_parser('calculate', help='commands for calculations ')
 subparsers_calc.add_argument('-d', '--dir-name', dest='dir_name', default='this_dir', type=str,
       help="The Location of the directory with the cxi-files (the input).")
 subparsers_calc.add_argument('-s', '--simulation-number', dest='sim_n', default=None, type=int, 
       help="The number of the pdb-file, which simulation is to be loaded from 0 to 90, e.g. '20' for the file <name>_4M20_<properties>l.cxi")
 #subparsers_e = subparsers.add_parser('e', help='a choices')
+subparsers_calc.add_argument('-q', '--q-range', dest='q_range', nargs=2, default="0 850", type=int, 
+      help="The Pixel range to caluate polar images and their correlations. Default is '0 850'.") ##type=float)
 subparsers_calc.add_argument('-e', '--exposure', dest='exp_set', default='pair', type=str, choices=['pair', 'diffs', 'all', 'all-dc'],
       help="Select how to auto-correalte the data: 'pair' (pair-wise difference between shots),'diffs', 'all' (all shot without difference), 'all-dc' (all shot without difference, difference done by correlation script).")
 # subparsers_calc.add_argument('-m', '--masked', dest='w_MASK', default=True, type=lambda s: (str(s).lower() in ['false', 'f', 'no', 'n', '0']),
@@ -1861,6 +1785,7 @@ subparsers_calc.add_argument('--no-mask', dest='w_MASK', action='store_false')
 subparsers_calc.set_defaults(w_MASK=True)
 subparsers_calc.set_defaults(func=load_and_calculate_from_cxi)
 
+## ---- For Loading Nx# files, Summarise and Plotting the total result: -----##
 subparsers_plt = subparsers.add_parser('plots', help='commands for plotting ')
 subparsers_plt.add_argument('-p', '--plot', dest='plt_set', default='single', type=str, choices=['single', 'subplot', 'all'],
       help="Select which plots to execute and save: 'single' each plot separately,'subplot' only a sublpot, 'all' both single plots and a subplot.")
