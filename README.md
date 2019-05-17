@@ -5,7 +5,7 @@ Diffraction patterns generated with Condor from FXI-hub
 
 script in CsCl/
 
-AutoCCA_84-run_v5.py & AutoCCA_84-run_v6.py
+AutoCCA_84-run_v5.py & AutoCA_84-run_v6.py
 Calculate the Auto-Correlations with ‘Loki’ and plot, including the mean intensity pattern, Fourier-coefficients, detector masks AC, subplot of; mean intensity patter, detector mask’s AC and AC of polar images. Data loaded from CXI-file. The v6 version includes a function for adding Gaussian noise to the read-in diffraction patterns before AC, Command Line Arguments --noise <float> .
 -plot ’single’ :  17
 -plot ‘subplot’ :  1
