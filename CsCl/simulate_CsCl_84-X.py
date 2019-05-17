@@ -122,7 +122,8 @@ else:
 cncntr = pdb.split('M')[0] ## Find which concentration was used and match to Experiment name ##
 assert (cncntr == "2" or cncntr == "4" or cncntr == "6"),("Incorrect concentration of crystals, pdb-file must start with '4' or '6'!")
 if cncntr == "4": run = "84-119"
-else : run ="84-105"
+elif cncntr == "6": run ="84-105"
+else: run =''
 par ={
 	# CsCl in water from simulated pdb:
 	"particle_atoms_cscl" :

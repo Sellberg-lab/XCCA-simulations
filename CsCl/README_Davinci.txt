@@ -6,6 +6,10 @@
 
 1. Path to Condor-simulated files in CXI-format of CsCl:  
 /home/cldah/cldah-scratch/condor_cxi_files/ ...
+	arrival_random/  	arrival_sync/
+	random arrival		synchronised arrival
+	Poisson distributed	of particles in beam-path
+	particle injection
 
 
 100 shots per pdb-file for all 91 PDB files of 4 Molar conentration with 1 nm beam-focus:
@@ -36,6 +40,10 @@ early simulations but with the wrong atom in pdb-files
 
 2. Paths to plots and calculations of Auto-correlation (of Condor-simulated files in CXI-format of CsCl) and intensity patterns (diffraction patterns):
 /home/cldah/cldah-scratch/CCA_RadProf_plots/ ...
+	arrival_random/  	arrival_sync/
+	random arrival		synchronised arrival
+	Poisson distributed	of particles in beam-path
+	particle injection
  
 
 ERR_column_C_in_PDB/:
