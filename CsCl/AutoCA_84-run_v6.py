@@ -9,7 +9,7 @@
 #   plots saved to choosen file-format 'frmt'
 #   Intensity Pattern = abs(Amplitude_Pattern)^2) are plotted directly as
 #   Patterson_Image '..._patterson_image_...' are from FFTshift-Fast Fourier transforms-FFTshift
-#           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phae retrieval)
+#           of Intensity Patterns =  AutoCorrelated image (can be used as initial guess for phase retrieval)
 # 2019-04-17 v6 @ Caroline Dahlqvist cldah@kth.se
 #			AutoCA_84-run_v6.py
 #			v4 with -s input: choose which simulated file to process
@@ -68,7 +68,7 @@ tick_length = 9		## the Length of the ticks ##
 sb_size = 16 #18 	## Fontsize of Sub-titles ##
 sp_size = 18#20  	## Fontsize of Super-titles ##
 l_pad = 10 			## Padding for Axis Labels ##
-cb_shrink, cb_padd = 1.0, 0.2  ## Colorbar padding ##
+cb_shrink, cb_padd = 1.0, 0.125#0.2  ## Colorbar padding ##
 cbs,cbp =  0.98, 0.02 #0.04, 0.1: Lplts cb overlap Rplt of SUBPLOT in subplot_acc() {Row1: 2 plts, Row2:1plt} ##
 padC = 50#10#50 	# pad the edges of the correlation (remove self-correlation junk) /l.181,  ave_corrs-script has 50 ##
 frmt = "eps" 	## Format used to save plots ##
@@ -231,7 +231,8 @@ def plot_2std_to_file(fig, data, q_map, fig_name,out_fname, title=None, frac=1):
 		ax.set_yticks(ytic)
 
 		# #---- Label xy-Axis: ----
-		ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
+		#ax.set_xlabel(r'$\phi$', fontsize = axis_fsize)
+		ax.set_xlabel(r'$\Delta$', fontsize = axis_fsize)
 		ax.set_ylabel(r'$q \, [\AA^{-1}]$', fontsize =axis_fsize)
 	pypl.gca().tick_params(labelsize=axis_fsize, length=tick_length)
 	if title is None:
@@ -271,7 +272,7 @@ def plot_even_odd(fig, data,q_map, fig_name,out_fname, title, lim=21):
 		if i % 2 == 0:		## only even i:s ##
 			ax_even.plot(data[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
 			ax_even.set_title("even n:s")
-			ax_even.legend()
+			ax_even.legend(fancybox=True, framealpha=0.5)
 			#q_bins = np.linspace(0, (q_map.shape[0]-1), num= ax_even.get_xticks().shape[0], dtype=int)  ## index of axis tick vector ##
 			#q_label = [ '%.3f'%(q_map[x,1]) for x in q_bins] ## 0: indices, 1: r [inv Angstrom], 2: q[pixels] ##
 			#ax_even.set_xticklabels(q_label), ax_even.set_xticks(q_bins)
@@ -281,7 +282,7 @@ def plot_even_odd(fig, data,q_map, fig_name,out_fname, title, lim=21):
 		else:				## only odd ##
 			ax_odd.plot(data[:,i].real, c=color, lw=2, label= 'n=%i' %i)#'Angle $ \phi=%i $' %i)
 			ax_odd.set_title("odd n:s")
-			ax_odd.legend()
+			ax_odd.legend(fancybox=True, framealpha=0.5)
 			ax_odd.set_xticklabels(ax_even.get_xticklabels()), ax_odd.set_xticks(ax_even.get_xticks())
 			ax_odd.set_xlabel(r'q', fontsize = axis_fsize)
 	pypl.subplots_adjust(wspace=0.3, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
@@ -743,6 +744,8 @@ def read_and_plot_acc(list_names, data_hdf, out_name, mask):
 				be_eV = dset_ip_sum.attrs["beam_energy_eV"]
 				pulse_E = dset_ip_sum.attrs["pulse_energy"]
 				beam_FWHM = dset_ip_sum.attrs["focus_diameter"]
+				#pulse_E = 1.E-1#dset_ip_sum.attrs["pulse_energy"]############################################################ OBS! Not stored in old simulations ('arrival_random') !!
+				#beam_FWHM = 1E-9 #dset_ip_sum.attrs["focus_diameter"]############################################################ OBS! Not stored in old simulations ('arrival_random') !!
 		corr_sum.extend(acc) ## (N,Q,phi)
 		ip_mean.append(ip_sum) ## (Y,X)
 		
@@ -889,7 +892,11 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	##################################################################################################################
 	##################################################################################################################
 	print "\n Plotting ACC."
-	fig1 = pypl.figure('AC', figsize=(22,15))
+	#fig1 = pypl.figure('AC', figsize=(22,15))
+	#fig_name = 'Diff-Auto-Corr_(qx-%i_qi-%i_nphi-%i)_%s.%s' %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+	fig1 = pypl.figure('AC', figsize=(11,7.5))	## Smaller version for the insert in A4 doc ##
+	fig_name = 'Diff-Auto-Corr_(qx-%i_qi-%i_nphi-%i)_%s_rprt.%s' %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+
 	sig = corrsum/corrsum[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	#sig = corrsum/corrsum[:,0][:,None] / corr_count
 	sig  =np.nan_to_num(sig)
@@ -897,7 +904,6 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	#print "corr: ", corr[:,0][:,None]
 	#print "\n sig dim: ", sig.shape #carteesian = (1738, 1742): polar =(190, 5)
 	
-	fig_name = 'Diff-Auto-Corr_(qx-%i_qi-%i_nphi-%i)_%s.%s' %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
 	norm_name=''
 	title= r"Average of %d corrs [%s] %s with limits $\mu \pm 2\sigma$"%(corr_count, pttrn, norm_name)
 	#plot_2std_to_file(fig=fig1, data=sig, norm_name='', fig_name=fig_name)
@@ -910,7 +916,11 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	##################################################################################################################
 	##################################################################################################################
 	print "\n Plotting ACC Normalied wit ACC of the Mask."
-	fig2 = pypl.figure('AC_N_Msk', figsize=(22,15))
+	#fig2 = pypl.figure('AC_N_Msk', figsize=(22,15))
+	#fig_name="Diff-Auto-Corr_Normed_w_Mask_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+	fig2 = pypl.figure('AC_N_Msk', figsize=(11,7.5))	## Smaller version for the insert in A4 doc ##
+	fig_name="Diff-Auto-Corr_Normed_w_Mask_(qx-%i_qi-%i_nphi-%i)_%s_rprt.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+
 	sig = corrsum_m/corrsum_m[:,0][:,None]/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	## withtNomred 0th angle ##
 	## every q : row vise normalization with Mean of q : norm each q  bin by average of that q
@@ -919,7 +929,6 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	#print "corr: ", corr[:,0][:,None]
 	#print "\n sig dim: ", sig.shape 
 
-	fig_name="Diff-Auto-Corr_Normed_w_Mask_(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
 	norm_name = '(Normalized with Mask)'
 	title= r"Average of %d corrs [%s] %s with limits $\mu \pm 2\sigma$"%(corr_count, pttrn, norm_name)
 	#plot_2std_to_file(fig=fig2, data=sig, norm_name=norm_name, fig_name=fig_name)
@@ -950,12 +959,15 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	##################################################################################################################
 	##################################################################################################################
 	print "\n Plotting ACC of the Mask."
-	fig4A = pypl.figure('AC_of_Msk', figsize=(22,15))
+	#fig4A = pypl.figure('AC_of_Msk', figsize=(22,15))
+	#fig_name="ACC_Mask__(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+	fig4A = pypl.figure('AC_of_Msk', figsize=(11,7.5)) ## Smaller version for the insert in A4 doc ##
+	fig_name="ACC_Mask__(qx-%i_qi-%i_nphi-%i)_%s_rprt.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
 
 	sig_m = corr_mask/corr_mask[:,0][:,None]#/corr_count #if Polar: RuntimeWarning: invalid value encountered in divide ###### !ERROR !!!
 	sig_m  =np.nan_to_num(sig_m)
 	#print "corrsum: ", corrsum[:,0][:,None] # = [[ 22.39735592] [  0.        ]...
-	fig_name="ACC_Mask__(qx-%i_qi-%i_nphi-%i)_%s.%s" %(qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+	
 	mask_title = "AC of Mask with limits $\mu \pm 2\sigma$"
 	#plot_2std_to_file(fig=fig4A, data=sig_m, norm_name='', fig_name=fig_name, title=mask_title)
 	plot_2std_to_file(fig=fig4A, data=sig_m, q_map=q_map, fig_name=fig_name, title=mask_title, out_fname=out_fname) #frac
@@ -967,7 +979,11 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	##################################################################################################################
 	color_map ='jet' #'viridis'; alt. color_map=cm.jet  if import matplotlib.cm as cm ##
 	print "\n Plotting some Diffraction Patterns."
-	fig5 = pypl.figure('Mean_Intensity', figsize=(15,12)) 
+	#fig5 = pypl.figure('Mean_Intensity', figsize=(15,12))
+	#fig_name = "Mean_Intensity_log10_lognorm.%s" %(frmt)
+	fig5 = pypl.figure('Mean_Intensity', figsize=(7.5,6)) ## Smaller version for the insert in A4 doc ##
+	fig_name = "Mean_Intensity_log10_lognorm_rprt.%s" %(frmt)
+
 	ax_tr = pypl.gca()  ## Bottom Axis ##
 	#cbs,cbp =  0.98, 0.02 #0.04, 0.1: left plts cb ocerlap middle fig
 	ax_tr.set_ylabel( 'y Pixels', fontsize=axis_fsize) 
@@ -1010,7 +1026,6 @@ def plot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_cou
 	rad_title.set_y(1.08) # 1.1), 1.08 OK but a bit low, 1.04 =overlap with Q
 	pypl.gca().tick_params(labelsize=axis_fsize, length=9)
 	############################## [fig.] End ##############################
-	fig_name = "Mean_Intensity_log10_lognorm.%s" %(frmt)
 	#pypl.show()
 	#pypl.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
 	fig5.savefig( out_fname + fig_name) # prefix = '/%s_%s_' %(name,pdb), out_fname = os.path.join( outdir, prefix)
@@ -1475,7 +1490,7 @@ def subplot_acc(corrsum,corr_count, q_map, nphi, pttrn,corr_mask, IP_mean, shot_
 	#cmap.set_bad('grey',1.) ## default: (color='k', alpha=None) Set color to be used for masked values. ##
 	#cmap.set_under('white',1.) ## Set color to be used for low out-of-range values. Requires norm.clip = False ##
 	
-	rad_title =ax_tr.set_title('Mean Intensity of %i Pattersn: ' %(shot_count), fontsize=sb_size)# %s_%s_%s_#%i\n' %(name,run,pdb,N), fontsize=sb_size)
+	rad_title =ax_tr.set_title('Mean Intensity of %i Patterns: ' %(shot_count), fontsize=sb_size)# %s_%s_%s_#%i\n' %(name,run,pdb,N), fontsize=sb_size)
 	rad_title.set_y(1.08) # 1.1), 1.08 OK but a bit low, 1.04 =overlap with Q
 	pypl.gca().tick_params(labelsize=axis_fsize, length=9)
 
@@ -1726,7 +1741,8 @@ def load_and_calculate_from_cxi(args):
 		#mask_seg_g=np.zeros_like(img, dtype=float)	## img(Y,X) same noise for all shots ##
 		G_map=np.zeros_like(shots, dtype=float) ##  shots(N,Y,X) different per shot ##
 		#W_map=np.zeros_like(img, dtype=float)	## img(Y,X), shots(N,Y,X) ##
-
+		max_500= np.asarray([ shots[n][0:500,0:500].max() for n in range(shots.shape[0]) ]).mean()
+		print "\nMax :", max_500
 		for i in range(nlabels):
 			# select=np.where( labels == (i+1)) ) ## the pixels for label i as a (2,X) tuple. 2 = Rows,Columns  ##
 			# R,C =np.where( labels == i ) ## the pixels to make noise in Rows,Column ##
@@ -1744,7 +1760,9 @@ def load_and_calculate_from_cxi(args):
 			#g_noise = np.random.normal(loc=mean, scale=std, size=labels[region].shape ) 	## per pixel ##
 			#g_noise = np.random.normal(loc=mean, scale=std) ## per ASIC, same for all shots ##
 			#G_map[region]=g_noise ## if per ASIC, same for all shots -> no 'size' in np.random.normal() ##
-			g_noise = np.random.normal(loc=0.0, scale=std*mean, size=shots.shape[0]) #per shot
+			#g_noise = np.random.normal(loc=0.0, scale=std*mean, size=shots.shape[0]) #per shot of mean per ASIC
+			g_noise = np.random.normal(loc=0.0, scale=std*max_500, size=shots.shape[0]) #per shot of max in corner with ring
+			
 			G_map[:,region[0],region[1]] = g_noise[:,None,None] ## add noise to region, per shot ##
 			
 			# for n in range(shots.shape[0]): shots[n][region]+= g_noise[n] ## alt. add noise directly by looping through the shots ##
