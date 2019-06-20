@@ -201,7 +201,7 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 
 	Out:				Plot of the auto-correlation.
 	"""
-	print "\n Plotting..."
+	
 	t_calc_plt = time.time()
 
 	## --- Font sizes and label-padding : ---- ##
@@ -260,25 +260,34 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 	del CC_12, CC_11, CC_22
 
 	## ---- Summed in parts with the Q-bins : ----- ##
-	FQC_q =[]
+	#FQC_q =[]
 	## eq.14 [Suppl, Kurta2017]:CC= sum_{q1<q}( F-CC_1(q1,q) *  conjugate[F-CC_2(q1,q)] ) + sum_{q2<q}( F-CC_1(q2,q) *  conjugate[F-CC_2(q2,q)] )  ##
 	for q in range(sig_cc_Aft.shape[1]):		# sig_cc.shape[1] = Q2
 		## sig_cc_Aft[map, Q2, Q1, n] ##
-		CC_12 = np.sum( sig_cc_Aft[0,:,0:q+1,:]*np.conjugate( sig_cc_Aft[1,:,0:q+1,:] ) ,-2)  + np.sum( sig_cc_Aft[1,0:q+1,:,:]*np.conjugate( sig_cc_Aft[0,0:q+1,:,:] ) ,-3) 
-		CC_11 = np.sum( sig_cc_Aft[0,:,0:q+1,:]*np.conjugate( sig_cc_Aft[0,:,0:q+1,:] ) ,-2)  + np.sum( sig_cc_Aft[0,0:q+1,:,:]*np.conjugate( sig_cc_Aft[0,0:q+1,:,:] ) ,-3) 
-		CC_22 = np.sum( sig_cc_Aft[1,:,0:q+1,:]*np.conjugate( sig_cc_Aft[1,:,0:q+1,:] ) ,-2)  + np.sum( sig_cc_Aft[1,0:q+1,:,:]*np.conjugate( sig_cc_Aft[1,0:q+1,:,:] ) ,-3) 
+		## 	v3:	only choosen q-value in other q-dim:	 ##	 # selecting 0,:,q,: 4D->2D
+		CC_12 = np.sum( sig_cc_Aft[0,q,0:q+1,:]*np.conjugate( sig_cc_Aft[1,q,0:q+1,:] ) ,-2)  + np.sum( sig_cc_Aft[1,0:q,q,:]*np.conjugate( sig_cc_Aft[0,0:q,q,:] ) ,-2)
+		CC_11 = np.sum( sig_cc_Aft[0,q,0:q+1,:]*np.conjugate( sig_cc_Aft[0,q,0:q+1,:] ) ,-2)  + np.sum( sig_cc_Aft[0,0:q,q,:]*np.conjugate( sig_cc_Aft[0,0:q,q,:] ) ,-2) 
+		CC_22 = np.sum( sig_cc_Aft[1,q,0:q+1,:]*np.conjugate( sig_cc_Aft[1,q,0:q+1,:] ) ,-2)  + np.sum( sig_cc_Aft[1,0:q,q,:]*np.conjugate( sig_cc_Aft[1,0:q,q,:] ) ,-2) 
+		## ValueError: 'axis' entry is out of bounds
 		print "Dim of CC-12:", CC_12.shape #=Dim of CC-12: (500, 360)
 		fqc = np.abs(CC_12)/ np.sqrt( CC_11*CC_22  )  ## eq.13 [Suppl, Kurta2017] ##
 		FQC_q.append(fqc)
+		#FQC_q.append(fqc)
+		del fqc, CC_12, CC_11, CC_22
 	FQC_q = np.asarray(FQC_q)
 	#FQC = np.abs(CC_12)/ np.sqrt( CC_11*CC_22  ) ##  n = 2, 4, 6, 8, 10, 12 ## eq.13 [Suppl, Kurta2017] ##
-	print "Dim of FQC_q:", FQC_q.shape #=Dim of FQC: (500, 500, 360)
+	print "Dim of FQC_q:", FQC_q.shape #Dim of FQC: v2= (500, 360)
 
+	#print "Dim of FQC_q:", FQC_q.shape
+	
 	## ---- Save the calculations: ---- ##
 	out_hdf = h5py.File( out_fname + '_calc.hdf5', 'w') 
 	out_hdf.create_dataset( 'fqc', data = np.asarray(FQC))
 	out_hdf.create_dataset( 'fqc_q', data = np.asarray(FQC_q))
+	#out_hdf.create_dataset( 'fqc_q', data = np.asarray(FQC_q))
 	out_hdf.create_dataset( 'q_mapping', data = q_map)
+	#out_hdf.create_dataset( 'number_of_maps_compared', data = corr_count)
+
 	out_hdf.close()
 	print "\n File Closed! \n"
 
@@ -318,7 +327,7 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 			fig_ax.tick_params(axis='both', labelsize=tick_fsize, length=tick_length)
 		return fig_ax
 
-	def plot_even_odd(fig, data, norm_name, fig_name):
+	def plot_even_odd(fig, data, norm_name, fig_name, lim):
 		"""
 		Plot the even and odd coefficients separately in 
 		side-by-side plots
@@ -327,10 +336,11 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 		data 		the calculated FFT-coefficients to plot, 2D array
 		norm_name 	the normalisations except for the mask, string.
 		filename	part of figure name unique to plot, string
+		lim 		The number of coefficients to include
 		"""
 		
 		## ---- Phi even-odd = [1,20]: ---- ##
-		lim=21#13 	## the number of coefficients to plot. 51 is too many !
+		#lim=21#13 	## the number of coefficients to plot. 51 is too many !
 		ax_even=fig.add_subplot(121)
 		ax_odd=fig.add_subplot(122, sharex=ax_even, sharey=ax_even)
 		pypl.subplots_adjust(wspace=0.2, hspace=0.2, left=0.08, right=0.95, top=0.85, bottom=0.15)
@@ -371,8 +381,7 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 		pypl.clf() ## clears figure ##
 
 
-
-
+	print "\n Plotting..."
 	##################################################################################################################
 	#------ Fig.19 FGC  eq.13 [Suppl, Kurta2017] of CC Normalised with correlated Mask &  || variance: --------------#
 	##################################################################################################################
@@ -380,11 +389,12 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 	## ---- FQC (FFT-angle) even-odd = [1,20]: ---- ##
 	fig19 = pypl.figure('FQC', figsize=(22,10)) ## height 8inch too low for math mode with sqrt ##
 	lim=21 ## plot the 20 coefficients after the 0th ##
+	#fig19 = pypl.figure('FQC', figsize=(11,8)); lim=13
 	fig_name = "_q1_vs_q2_FQC-%i_(qx-%i_qi-%i_nphi-%i)_%s.%s"%(lim,qmax_pix,qmin_pix, nphi ,pttrn,frmt)
 	norm_name=' '
 	title="Re{FFT} $\phi [1,%i]$ of Average of %d corrs [%s] \n (Normalized with Mask %s)"%(lim,corr_count, pttrn, norm_name)
 	#plot_even_odd(fig=fig19, data=FQC, q_map=q_map, fig_name=fig_name, title=title, out_fname=out_fname,lim=lim) ## if outside current function ##
-	plot_even_odd(fig=fig19 , data=FQC, norm_name=norm_name,  fig_name=fig_name)
+	plot_even_odd(fig=fig19 , data=FQC, norm_name=norm_name,  fig_name=fig_name, lim=lim)
 	## if <<1 then the maps are substantially different
 
 
@@ -392,6 +402,20 @@ def plot_cc(corr_count, q_map, nphi, pttrn, shot_count,dtc_dist_m,wl_A,ps_m,be_e
 	t_m =int(t)/60
 	t_s=t-t_m*60
 	print "\n Total Time for Load and Plot: ", t_m, "min, ", t_s, "s " #  47 min,  59.9696178436 s
+
+	##################################################################################################################
+	#------ Fig.20 FGC_q  eq.13 [Suppl, Kurta2017] of CC Normalised with correlated Mask &  || variance: --------------#
+	##################################################################################################################
+	##################################################################################################################
+	## ---- FQC (FFT-angle) even-odd = [1,20]: ---- ##
+	#fig20 = pypl.figure('FQC', figsize=(22,10)) ## height 8inch too low for math mode with sqrt ##
+	fig20 = pypl.figure('FQC_q', figsize=(11,5)) ## height 8inch too low for math mode with sqrt ##
+
+	lim=21 ## plot the 20 coefficients after the 0th ##
+	fig_name = "_q1_vs_q2_FQC_qs-%i_(qx-%i_qi-%i_nphi-%i)_%s.%s"%(lim,qmax_pix,qmin_pix, nphi ,pttrn,frmt)
+	norm_name=' '
+	title="Re{FFT} $\phi [1,%i]$ of Average of %d corrs [%s] \n (Normalized with Mask %s)"%(lim,corr_count, pttrn, norm_name)
+	plot_even_odd(fig=fig20 , data=FQC_q, norm_name=norm_name,  fig_name=fig_name, lim=lim)
 
 ##################################################################################################################
 ##################################################################################################################
@@ -473,9 +497,8 @@ def load_and_plot_from_hdf5(args):
 		#else:	end_file=end_i
 		#pdb= cncntr +'M' + start_file +'-'+ cncntr +'M'+ end_file
 
-		pdb= cncntr +'M' + start_i +'-'+  end_i + '_' +
-			 cncntr +'M'+ start_f +'-'+  end_f 
-	else :	pdb = cncntr_start
+		pdb= cncntr +'M' + start_i +'-'+  end_i + '_' + cncntr +'M'+ start_f +'-'+  end_f 
+	else :	pdb = cncntr
 	#run=fnames[0].split('84-')[-1][0:3] 		## 3rd index excluded ##
 	#noisy = fnames[0].split('_ed_(')[-1].split('-sprd')[0]
 	noisy = fnames[0].split('_(')[-1].split('-sprd')[0] ## if not '4M90_ed' but '4M90' in name
